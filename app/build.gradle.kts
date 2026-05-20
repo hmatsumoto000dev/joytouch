@@ -11,8 +11,8 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.test0"
-        minSdk = 24
+        applicationId = "com.example.joytouch"
+        minSdk = 28
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
