@@ -1,0 +1,258 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/main_layout"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#121212"
+    android:paddingStart="48dp"
+    android:paddingEnd="48dp"
+    tools:context=".MainActivity">
+
+    <!-- Guideline to split the screen for movement and action -->
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/guideline_center"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        app:layout_constraintGuide_percent="0.45" />
+
+    <!-- About Button -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_about"
+        style="@style/Widget.MaterialComponents.Button.TextButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/about_title"
+        android:textColor="#888888"
+        android:textSize="12sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/btn_connect"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- Connect Button -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_connect"
+        style="@style/Widget.MaterialComponents.Button.TextButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/btn_connect"
+        android:textColor="#4CAF50"
+        android:textSize="12sp"
+        app:layout_constraintEnd_toStartOf="@+id/btn_about"
+        app:layout_constraintHorizontal_chainStyle="packed"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- Movement Buttons (Left Side) -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_down"
+        style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+        android:layout_width="70dp"
+        android:layout_height="70dp"
+        android:layout_marginBottom="80dp"
+        android:insetLeft="0dp"
+        android:insetTop="0dp"
+        android:insetRight="0dp"
+        android:insetBottom="0dp"
+        android:text="@string/btn_down"
+        android:textSize="24sp"
+        app:cornerRadius="35dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/guideline_center"
+        app:layout_constraintHorizontal_bias="0.5"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_left"
+        style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+        android:layout_width="70dp"
+        android:layout_height="70dp"
+        android:layout_marginEnd="12dp"
+        android:insetLeft="0dp"
+        android:insetTop="0dp"
+        android:insetRight="0dp"
+        android:insetBottom="0dp"
+        android:text="@string/btn_left"
+        android:textSize="24sp"
+        app:cornerRadius="35dp"
+        app:layout_constraintBottom_toBottomOf="@+id/btn_down"
+        app:layout_constraintEnd_toStartOf="@+id/btn_down"
+        app:layout_constraintTop_toTopOf="@+id/btn_down" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_right"
+        style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+        android:layout_width="70dp"
+        android:layout_height="70dp"
+        android:layout_marginStart="12dp"
+        android:insetLeft="0dp"
+        android:insetTop="0dp"
+        android:insetRight="0dp"
+        android:insetBottom="0dp"
+        android:text="@string/btn_right"
+        android:textSize="24sp"
+        app:cornerRadius="35dp"
+        app:layout_constraintBottom_toBottomOf="@+id/btn_down"
+        app:layout_constraintStart_toEndOf="@+id/btn_down"
+        app:layout_constraintTop_toTopOf="@+id/btn_down" />
+
+    <!-- Up/Jump Button (Larger, positioned above others) -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_up"
+        style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+        android:layout_width="100dp"
+        android:layout_height="100dp"
+        android:layout_marginBottom="16dp"
+        android:insetLeft="0dp"
+        android:insetTop="0dp"
+        android:insetRight="0dp"
+        android:insetBottom="0dp"
+        android:text="@string/btn_up"
+        android:textSize="32sp"
+        app:backgroundTint="#E91E63"
+        app:cornerRadius="50dp"
+        app:layout_constraintBottom_toTopOf="@+id/btn_down"
+        app:layout_constraintEnd_toEndOf="@+id/btn_right"
+        app:layout_constraintStart_toStartOf="@+id/btn_left" />
+
+    <!-- Action Buttons (Right Side) -->
+    <!-- Grid 4x2 -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_atk1"
+        style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+        android:layout_width="65dp"
+        android:layout_height="65dp"
+        android:insetLeft="0dp"
+        android:insetTop="0dp"
+        android:insetRight="0dp"
+        android:insetBottom="0dp"
+        android:text="@string/btn_atk1"
+        app:cornerRadius="33dp"
+        app:layout_constraintBottom_toTopOf="@+id/btn_atk5"
+        app:layout_constraintEnd_toStartOf="@+id/btn_atk2"
+        app:layout_constraintHorizontal_chainStyle="packed"
+        app:layout_constraintStart_toEndOf="@+id/guideline_center"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_chainStyle="packed" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_atk2"
+        style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+        android:layout_width="65dp"
+        android:layout_height="65dp"
+        android:layout_marginStart="12dp"
+        android:insetLeft="0dp"
+        android:insetTop="0dp"
+        android:insetRight="0dp"
+        android:insetBottom="0dp"
+        android:text="@string/btn_atk2"
+        app:cornerRadius="33dp"
+        app:layout_constraintBottom_toBottomOf="@+id/btn_atk1"
+        app:layout_constraintEnd_toStartOf="@+id/btn_atk3"
+        app:layout_constraintStart_toEndOf="@+id/btn_atk1"
+        app:layout_constraintTop_toTopOf="@+id/btn_atk1" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_atk3"
+        style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+        android:layout_width="65dp"
+        android:layout_height="65dp"
+        android:layout_marginStart="12dp"
+        android:insetLeft="0dp"
+        android:insetTop="0dp"
+        android:insetRight="0dp"
+        android:insetBottom="0dp"
+        android:text="@string/btn_atk3"
+        app:cornerRadius="33dp"
+        app:layout_constraintBottom_toBottomOf="@+id/btn_atk2"
+        app:layout_constraintEnd_toStartOf="@+id/btn_atk4"
+        app:layout_constraintStart_toEndOf="@+id/btn_atk2"
+        app:layout_constraintTop_toTopOf="@+id/btn_atk2" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_atk4"
+        style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+        android:layout_width="65dp"
+        android:layout_height="65dp"
+        android:layout_marginStart="12dp"
+        android:insetLeft="0dp"
+        android:insetTop="0dp"
+        android:insetRight="0dp"
+        android:insetBottom="0dp"
+        android:text="@string/btn_atk4"
+        app:cornerRadius="33dp"
+        app:layout_constraintBottom_toBottomOf="@+id/btn_atk3"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/btn_atk3"
+        app:layout_constraintTop_toTopOf="@+id/btn_atk3" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_atk5"
+        style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+        android:layout_width="65dp"
+        android:layout_height="65dp"
+        android:layout_marginTop="12dp"
+        android:insetLeft="0dp"
+        android:insetTop="0dp"
+        android:insetRight="0dp"
+        android:insetBottom="0dp"
+        android:text="@string/btn_atk5"
+        app:cornerRadius="33dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="@+id/btn_atk1"
+        app:layout_constraintStart_toStartOf="@+id/btn_atk1"
+        app:layout_constraintTop_toBottomOf="@+id/btn_atk1" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_atk6"
+        style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+        android:layout_width="65dp"
+        android:layout_height="65dp"
+        android:insetLeft="0dp"
+        android:insetTop="0dp"
+        android:insetRight="0dp"
+        android:insetBottom="0dp"
+        android:text="@string/btn_atk6"
+        app:cornerRadius="33dp"
+        app:layout_constraintBottom_toBottomOf="@+id/btn_atk5"
+        app:layout_constraintEnd_toEndOf="@+id/btn_atk2"
+        app:layout_constraintStart_toStartOf="@+id/btn_atk2"
+        app:layout_constraintTop_toTopOf="@+id/btn_atk5" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_atk7"
+        style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+        android:layout_width="65dp"
+        android:layout_height="65dp"
+        android:insetLeft="0dp"
+        android:insetTop="0dp"
+        android:insetRight="0dp"
+        android:insetBottom="0dp"
+        android:text="@string/btn_atk7"
+        app:cornerRadius="33dp"
+        app:layout_constraintBottom_toBottomOf="@+id/btn_atk6"
+        app:layout_constraintEnd_toEndOf="@+id/btn_atk3"
+        app:layout_constraintStart_toStartOf="@+id/btn_atk3"
+        app:layout_constraintTop_toTopOf="@+id/btn_atk6" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_atk8"
+        style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+        android:layout_width="65dp"
+        android:layout_height="65dp"
+        android:insetLeft="0dp"
+        android:insetTop="0dp"
+        android:insetRight="0dp"
+        android:insetBottom="0dp"
+        android:text="@string/btn_atk8"
+        app:cornerRadius="33dp"
+        app:layout_constraintBottom_toBottomOf="@+id/btn_atk7"
+        app:layout_constraintEnd_toEndOf="@+id/btn_atk4"
+        app:layout_constraintStart_toStartOf="@+id/btn_atk4"
+        app:layout_constraintTop_toTopOf="@+id/btn_atk7" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

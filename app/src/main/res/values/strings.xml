@@ -1,0 +1,19 @@
+<resources>
+    <string name="app_name">joytouch</string>
+    <string name="btn_left">←</string>
+    <string name="btn_down">↓</string>
+    <string name="btn_right">→</string>
+    <string name="btn_up">↑</string>
+    <string name="btn_atk1">1</string>
+    <string name="btn_atk2">2</string>
+    <string name="btn_atk3">3</string>
+    <string name="btn_atk4">4</string>
+    <string name="btn_atk5">5</string>
+    <string name="btn_atk6">6</string>
+    <string name="btn_atk7">7</string>
+    <string name="btn_atk8">8</string>
+    <string name="about_title">About This App</string>
+    <string name="about_msg">Developer: hmatsumoto\nEmail: hmatsumoto000dev@gmail.com</string>
+    <string name="about_ok">OK</string>
+    <string name="btn_connect">Connect</string>
+</resources>
