@@ -49,7 +49,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     // HIDレポート用バッファ (Byte 0: Buttons, Byte 1: X-Axis, Byte 2: Y-Axis)
-    private val reportBuffer = byteArrayOf(0, 128.toByte(), 128.toByte())
+    private val reportBuffer = byteArrayOf(0, 0, 0)
 
     // ボタンのインスタンスリスト
     private lateinit var buttons: List<MaterialButton>
@@ -170,14 +170,14 @@ class MainActivity : AppCompatActivity() {
         if (buttonStates[R.id.btn_atk8] == true) buttonsByte = buttonsByte or 0x80
         reportBuffer[0] = buttonsByte.toByte()
 
-        var xAxis = 128
-        if (buttonStates[R.id.btn_left] == true) xAxis = 0
-        if (buttonStates[R.id.btn_right] == true) xAxis = 255
+        var xAxis = 0
+        if (buttonStates[R.id.btn_left] == true) xAxis = -127
+        if (buttonStates[R.id.btn_right] == true) xAxis = 127
         reportBuffer[1] = xAxis.toByte()
 
-        var yAxis = 128
-        if (buttonStates[R.id.btn_up] == true) yAxis = 0
-        if (buttonStates[R.id.btn_down] == true) yAxis = 255
+        var yAxis = 0
+        if (buttonStates[R.id.btn_up] == true) yAxis = -127
+        if (buttonStates[R.id.btn_down] == true) yAxis = 127
         reportBuffer[2] = yAxis.toByte()
 
         hidService?.sendReport(1, reportBuffer)
