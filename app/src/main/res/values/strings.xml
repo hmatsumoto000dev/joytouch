@@ -18,4 +18,5 @@
     <string name="btn_connect">Connect</string>
     <string name="mode_edit">Edit Mode</string>
     <string name="mode_play">Play Mode</string>
+    <string name="btn_reset">Reset Layout</string>
 </resources>

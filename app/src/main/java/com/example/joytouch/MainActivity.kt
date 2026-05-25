@@ -58,6 +58,11 @@ class MainActivity : AppCompatActivity() {
 
     private var isEditMode = false
 
+    // 各ボタンの編集サブモード（true: サイズ変更, false: 位置移動）
+    private val isResizeModeMap = mutableMapOf<Int, Boolean>()
+    // ダブルタップ判定用
+    private val lastClickTimeMap = mutableMapOf<Int, Long>()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -83,14 +88,25 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        buttons.forEach { buttonStates[it.id] = false }
+        buttons.forEach { 
+            buttonStates[it.id] = false 
+            isResizeModeMap[it.id] = false
+        }
 
         // モード切替ボタンの設定
         val modeToggle = findViewById<MaterialButton>(R.id.btn_mode_toggle)
+        val resetBtn = findViewById<MaterialButton>(R.id.btn_reset)
+
         modeToggle.setOnClickListener {
             isEditMode = !isEditMode
             modeToggle.text = if (isEditMode) getString(R.string.mode_edit) else getString(R.string.mode_play)
+            resetBtn.visibility = if (isEditMode) View.VISIBLE else View.GONE
             setupMode()
+        }
+
+        // 初期配置に戻すボタン
+        resetBtn.setOnClickListener {
+            resetLayout()
         }
 
         // 保存された位置を復元
@@ -122,16 +138,31 @@ class MainActivity : AppCompatActivity() {
             // 編集モード: 各ボタンにドラッグリスナーを設定
             buttons.forEach { button ->
                 button.setOnTouchListener(createDragListener())
+                updateButtonEditVisual(button)
             }
         } else {
             // 操作モード: 個別のリスナーを解除し、状態をリセット
             buttons.forEach { button ->
                 button.setOnTouchListener(null)
                 buttonStates[button.id] = false
+                button.strokeWidth = 0 // 枠線を消す
                 updateButtonFeedback(button, false)
             }
             // ニュートラル状態を送信
             sendHidReport()
+        }
+    }
+
+    private fun updateButtonEditVisual(button: View) {
+        if (button is MaterialButton) {
+            val isResize = isResizeModeMap[button.id] ?: false
+            if (isResize) {
+                button.strokeWidth = 8
+                button.strokeColor = android.content.res.ColorStateList.valueOf(android.graphics.Color.YELLOW)
+            } else {
+                button.strokeWidth = 4
+                button.strokeColor = android.content.res.ColorStateList.valueOf(android.graphics.Color.CYAN)
+            }
         }
     }
 
@@ -142,14 +173,37 @@ class MainActivity : AppCompatActivity() {
         return View.OnTouchListener { v, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
+                    val currentTime = System.currentTimeMillis()
+                    val lastTime = lastClickTimeMap[v.id] ?: 0L
+                    if (currentTime - lastTime < 300) {
+                        // ダブルタップ検知: モード切り替え
+                        isResizeModeMap[v.id] = !(isResizeModeMap[v.id] ?: false)
+                        updateButtonEditVisual(v)
+                        Toast.makeText(this, if (isResizeModeMap[v.id] == true) "Resize Mode" else "Move Mode", Toast.LENGTH_SHORT).show()
+                    }
+                    lastClickTimeMap[v.id] = currentTime
+                    
                     lastRawX = event.rawX
                     lastRawY = event.rawY
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val deltaX = event.rawX - lastRawX
                     val deltaY = event.rawY - lastRawY
-                    v.translationX += deltaX
-                    v.translationY += deltaY
+                    
+                    if (isResizeModeMap[v.id] == true) {
+                        // サイズ変更モード: Y軸の移動量で拡大縮小
+                        val scaleFactor = 1.0f + (deltaY / 500f)
+                        v.scaleX *= scaleFactor
+                        v.scaleY *= scaleFactor
+                        // 最小/最大サイズ制限
+                        v.scaleX = v.scaleX.coerceIn(0.5f, 3.0f)
+                        v.scaleY = v.scaleY.coerceIn(0.5f, 3.0f)
+                    } else {
+                        // 配置変更モード
+                        v.translationX += deltaX
+                        v.translationY += deltaY
+                    }
+                    
                     lastRawX = event.rawX
                     lastRawY = event.rawY
                 }
@@ -161,12 +215,25 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun resetLayout() {
+        buttons.forEach { button ->
+            button.translationX = 0f
+            button.translationY = 0f
+            button.scaleX = 1.0f
+            button.scaleY = 1.0f
+            saveButtonPosition(button)
+        }
+        Toast.makeText(this, "Layout Reset", Toast.LENGTH_SHORT).show()
+    }
+
     private fun saveButtonPosition(view: View) {
         val prefs = getSharedPreferences("button_prefs", Context.MODE_PRIVATE)
         val buttonName = resources.getResourceEntryName(view.id)
         prefs.edit().apply {
             putFloat("${buttonName}_tx", view.translationX)
             putFloat("${buttonName}_ty", view.translationY)
+            putFloat("${buttonName}_sx", view.scaleX)
+            putFloat("${buttonName}_sy", view.scaleY)
             apply()
         }
     }
@@ -177,6 +244,8 @@ class MainActivity : AppCompatActivity() {
             val buttonName = resources.getResourceEntryName(button.id)
             button.translationX = prefs.getFloat("${buttonName}_tx", 0f)
             button.translationY = prefs.getFloat("${buttonName}_ty", 0f)
+            button.scaleX = prefs.getFloat("${buttonName}_sx", 1.0f)
+            button.scaleY = prefs.getFloat("${buttonName}_sy", 1.0f)
         }
     }
 
@@ -326,10 +395,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun isPointInView(x: Float, y: Float, view: View): Boolean {
-        val left = view.left + view.translationX
-        val right = view.right + view.translationX
-        val top = view.top + view.translationY
-        val bottom = view.bottom + view.translationY
+        // スケールを考慮した当たり判定
+        val w = view.width * view.scaleX
+        val h = view.height * view.scaleY
+        val centerX = view.left + view.translationX + view.width / 2f
+        val centerY = view.top + view.translationY + view.height / 2f
+        
+        val left = centerX - w / 2f
+        val right = centerX + w / 2f
+        val top = centerY - h / 2f
+        val bottom = centerY + h / 2f
+
         return x >= left && x <= right && y >= top && y <= bottom
     }
 
