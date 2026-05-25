@@ -16,4 +16,6 @@
     <string name="about_msg">Developer: hmatsumoto\nEmail: hmatsumoto000dev@gmail.com</string>
     <string name="about_ok">OK</string>
     <string name="btn_connect">Connect</string>
+    <string name="mode_edit">Edit Mode</string>
+    <string name="mode_play">Play Mode</string>
 </resources>

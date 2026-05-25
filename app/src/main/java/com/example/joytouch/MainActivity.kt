@@ -56,6 +56,8 @@ class MainActivity : AppCompatActivity() {
     // 各ボタンの現在の状態（true: 押されている, false: 離されている）
     private val buttonStates = mutableMapOf<Int, Boolean>()
 
+    private var isEditMode = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -83,6 +85,17 @@ class MainActivity : AppCompatActivity() {
 
         buttons.forEach { buttonStates[it.id] = false }
 
+        // モード切替ボタンの設定
+        val modeToggle = findViewById<MaterialButton>(R.id.btn_mode_toggle)
+        modeToggle.setOnClickListener {
+            isEditMode = !isEditMode
+            modeToggle.text = if (isEditMode) getString(R.string.mode_edit) else getString(R.string.mode_play)
+            setupMode()
+        }
+
+        // 保存された位置を復元
+        loadButtonPositions()
+
         // Aboutボタンの設定
         findViewById<View>(R.id.btn_about).setOnClickListener {
             showAboutDialog()
@@ -96,9 +109,74 @@ class MainActivity : AppCompatActivity() {
         // ルートレイアウトにマルチタッチリスナーを設定
         val mainLayout = findViewById<View>(R.id.main_layout)
         mainLayout.setOnTouchListener { v, event ->
-            handleMultiTouch(event)
+            if (!isEditMode) {
+                handleMultiTouch(event)
+            }
             v.performClick()
             true
+        }
+    }
+
+    private fun setupMode() {
+        if (isEditMode) {
+            // 編集モード: 各ボタンにドラッグリスナーを設定
+            buttons.forEach { button ->
+                button.setOnTouchListener(createDragListener())
+            }
+        } else {
+            // 操作モード: 個別のリスナーを解除し、状態をリセット
+            buttons.forEach { button ->
+                button.setOnTouchListener(null)
+                buttonStates[button.id] = false
+                updateButtonFeedback(button, false)
+            }
+            // ニュートラル状態を送信
+            sendHidReport()
+        }
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    private fun createDragListener(): View.OnTouchListener {
+        var lastRawX = 0f
+        var lastRawY = 0f
+        return View.OnTouchListener { v, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    lastRawX = event.rawX
+                    lastRawY = event.rawY
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val deltaX = event.rawX - lastRawX
+                    val deltaY = event.rawY - lastRawY
+                    v.translationX += deltaX
+                    v.translationY += deltaY
+                    lastRawX = event.rawX
+                    lastRawY = event.rawY
+                }
+                MotionEvent.ACTION_UP -> {
+                    saveButtonPosition(v)
+                }
+            }
+            true
+        }
+    }
+
+    private fun saveButtonPosition(view: View) {
+        val prefs = getSharedPreferences("button_prefs", Context.MODE_PRIVATE)
+        val buttonName = resources.getResourceEntryName(view.id)
+        prefs.edit().apply {
+            putFloat("${buttonName}_tx", view.translationX)
+            putFloat("${buttonName}_ty", view.translationY)
+            apply()
+        }
+    }
+
+    private fun loadButtonPositions() {
+        val prefs = getSharedPreferences("button_prefs", Context.MODE_PRIVATE)
+        buttons.forEach { button ->
+            val buttonName = resources.getResourceEntryName(button.id)
+            button.translationX = prefs.getFloat("${buttonName}_tx", 0f)
+            button.translationY = prefs.getFloat("${buttonName}_ty", 0f)
         }
     }
 
@@ -248,7 +326,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun isPointInView(x: Float, y: Float, view: View): Boolean {
-        return x >= view.left && x <= view.right && y >= view.top && y <= view.bottom
+        val left = view.left + view.translationX
+        val right = view.right + view.translationX
+        val top = view.top + view.translationY
+        val bottom = view.bottom + view.translationY
+        return x >= left && x <= right && y >= top && y <= bottom
     }
 
     private fun updateButtonFeedback(button: MaterialButton, isPressed: Boolean) {
