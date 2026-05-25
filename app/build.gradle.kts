@@ -1,3 +1,6 @@
+import java.text.SimpleDateFormat
+import java.util.Date
+
 plugins {
     alias(libs.plugins.android.application)
 }
@@ -29,9 +32,19 @@ android {
             )
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+    }
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.outputs.forEach { output ->
+            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss").format(Date())
+            output.outputFileName.set("joytouch_${timestamp}.apk")
+        }
     }
 }
 
