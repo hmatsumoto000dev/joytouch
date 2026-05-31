@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
+import android.hardware.usb.UsbManager
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
@@ -19,6 +20,9 @@ import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.google.android.material.button.MaterialButton
 
 @RequiresApi(Build.VERSION_CODES.P)
@@ -26,20 +30,40 @@ class MainActivity : AppCompatActivity() {
 
     // Service関連
     private var hidService: HidDeviceService? = null
+    private var usbAoaService: UsbAoaService? = null
     private var isBound = false
+    private var isUsbBound = false
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
             val binder = service as HidDeviceService.LocalBinder
             hidService = binder.getService()
             isBound = true
-            Log.d("MainActivity", "Service connected")
+            Log.d("MainActivity", "HID Service connected")
         }
 
         override fun onServiceDisconnected(arg0: ComponentName) {
             isBound = false
             hidService = null
-            Log.d("MainActivity", "Service disconnected")
+            Log.d("MainActivity", "HID Service disconnected")
+        }
+    }
+
+    private val usbConnection = object : ServiceConnection {
+        override fun onServiceConnected(className: ComponentName, service: IBinder) {
+            val binder = service as UsbAoaService.LocalBinder
+            usbAoaService = binder.getService()
+            isUsbBound = true
+            Log.d("MainActivity", "USB AOA Service connected")
+            
+            // 初回起動時にAccessory情報があれば渡す
+            intent?.let { handleUsbIntent(it) }
+        }
+
+        override fun onServiceDisconnected(arg0: ComponentName) {
+            isUsbBound = false
+            usbAoaService = null
+            Log.d("MainActivity", "USB AOA Service disconnected")
         }
     }
 
@@ -71,9 +95,13 @@ class MainActivity : AppCompatActivity() {
         checkPermissions()
 
         // サービスの開始とバインド
-        val intent = Intent(this, HidDeviceService::class.java)
-        startForegroundService(intent)
-        bindService(intent, connection, Context.BIND_AUTO_CREATE)
+        val hidIntent = Intent(this, HidDeviceService::class.java)
+        startForegroundService(hidIntent)
+        bindService(hidIntent, connection, Context.BIND_AUTO_CREATE)
+
+        val usbIntent = Intent(this, UsbAoaService::class.java)
+        startForegroundService(usbIntent)
+        bindService(usbIntent, usbConnection, Context.BIND_AUTO_CREATE)
 
         // 全ボタンのIDをリスト化して取得
         val buttonIds = listOf(
@@ -111,6 +139,9 @@ class MainActivity : AppCompatActivity() {
 
         // 保存された位置を復元
         loadButtonPositions()
+
+        // フルスクリーン（イマーシブモード）の設定
+        hideSystemUI()
 
         // Aboutボタンの設定
         findViewById<View>(R.id.btn_about).setOnClickListener {
@@ -249,11 +280,29 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleUsbIntent(intent)
+    }
+
+    private fun handleUsbIntent(intent: Intent) {
+        if (intent.action == UsbManager.ACTION_USB_ACCESSORY_ATTACHED) {
+            val usbIntent = Intent(this, UsbAoaService::class.java).apply {
+                putExtras(intent)
+            }
+            startService(usbIntent)
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         if (isBound) {
             unbindService(connection)
             isBound = false
+        }
+        if (isUsbBound) {
+            unbindService(usbConnection)
+            isUsbBound = false
         }
     }
 
@@ -328,6 +377,7 @@ class MainActivity : AppCompatActivity() {
         reportBuffer[2] = yAxis.toByte()
 
         hidService?.sendReport(1, reportBuffer)
+        usbAoaService?.sendData(reportBuffer)
     }
 
     private fun checkPermissions() {
@@ -412,5 +462,20 @@ class MainActivity : AppCompatActivity() {
     private fun updateButtonFeedback(button: MaterialButton, isPressed: Boolean) {
         button.isPressed = isPressed
         button.alpha = if (isPressed) 0.5f else 1.0f
+    }
+
+    private fun hideSystemUI() {
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        WindowInsetsControllerCompat(window, window.decorView).let { controller ->
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) {
+            hideSystemUI()
+        }
     }
 }
