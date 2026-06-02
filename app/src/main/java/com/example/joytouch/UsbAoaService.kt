@@ -33,6 +33,8 @@ class UsbAoaService : Service() {
         super.onCreate()
         usbManager = getSystemService(Context.USB_SERVICE) as UsbManager
         createNotificationChannel()
+
+        // フォアグラウンドサービス開始
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(
                 NOTIFICATION_ID,
@@ -42,6 +44,9 @@ class UsbAoaService : Service() {
         } else {
             startForeground(NOTIFICATION_ID, createNotification())
         }
+
+        // 起動時に既にアクセサリが接続されているか確認
+        checkExistingAccessory()
     }
 
     override fun onBind(intent: Intent?): IBinder = binder
@@ -49,19 +54,42 @@ class UsbAoaService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val accessory = intent?.getParcelableExtra<UsbAccessory>(UsbManager.EXTRA_ACCESSORY)
         if (accessory != null) {
+            Log.d(TAG, "Accessory found in Intent: ${accessory.model}")
             openAccessory(accessory)
+        } else {
+            // Intentになくても、接続済みリストを再確認
+            checkExistingAccessory()
         }
         return START_STICKY
     }
 
-    private fun openAccessory(accessory: UsbAccessory) {
-        fileDescriptor = usbManager?.openAccessory(accessory)
-        if (fileDescriptor != null) {
-            val fd = fileDescriptor!!.fileDescriptor
-            outputStream = FileOutputStream(fd)
-            Log.d(TAG, "Accessory opened: ${accessory.model}")
+    private fun checkExistingAccessory() {
+        val accessories = usbManager?.accessoryList
+        if (!accessories.isNullOrEmpty()) {
+            Log.d(TAG, "Accessory already connected: ${accessories[0].model}")
+            openAccessory(accessories[0])
         } else {
-            Log.e(TAG, "Failed to open accessory")
+            Log.d(TAG, "No connected accessory found in list.")
+        }
+    }
+
+    private fun openAccessory(accessory: UsbAccessory) {
+        if (outputStream != null) {
+            Log.d(TAG, "Accessory is already open.")
+            return
+        }
+
+        try {
+            fileDescriptor = usbManager?.openAccessory(accessory)
+            if (fileDescriptor != null) {
+                val fd = fileDescriptor!!.fileDescriptor
+                outputStream = FileOutputStream(fd)
+                Log.i(TAG, "!!! USB Accessory Opened Successfully: ${accessory.model} !!!")
+            } else {
+                Log.e(TAG, "Failed to open accessory - openAccessory returned null (Permission denied?)")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error opening USB accessory", e)
         }
     }
 
@@ -72,20 +100,22 @@ class UsbAoaService : Service() {
                 stream.write(data)
                 stream.flush()
 
-                // 送信データのデバッグログを追加
+                // 送信データの16進数デバッグログ
                 val hexString = data.joinToString(", ") { "0x%02X".format(it) }
-                Log.d("UsbAoaService", "USB Data Sent: [$hexString]")
+                Log.d(TAG, "USB Data Sent: [$hexString]")
             } catch (e: IOException) {
                 Log.e(TAG, "Error writing to accessory", e)
                 closeAccessory()
             }
         } else {
-            // streamがnull（未接続）の場合のログ
-            Log.w(TAG, "Cannot send data: outputStream is null (Accessory not opened)")
+            // ここで null の場合に再接続を試みる（念のため）
+            Log.w(TAG, "Cannot send data: outputStream is null. Attempting re-check...")
+            checkExistingAccessory()
         }
     }
 
     private fun closeAccessory() {
+        Log.d(TAG, "Closing accessory")
         try {
             outputStream?.close()
             fileDescriptor?.close()
@@ -116,7 +146,7 @@ class UsbAoaService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("JoyTouch USB Active")
             .setContentText("Connected to PC via USB")
-            .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth) // Use appropriate icon
+            .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
             .build()
     }
 

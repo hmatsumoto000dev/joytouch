@@ -2,6 +2,5 @@
 <resources>
     <usb-accessory
         manufacturer="JoyTouch"
-        model="GamepadAccessory"
-        version="1.0" />
+        model="GamepadAccessory" />
 </resources>
