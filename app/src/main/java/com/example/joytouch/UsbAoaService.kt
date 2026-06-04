@@ -4,8 +4,10 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.hardware.usb.UsbAccessory
 import android.hardware.usb.UsbManager
@@ -25,6 +27,18 @@ class UsbAoaService : Service() {
     private var fileDescriptor: ParcelFileDescriptor? = null
     private var outputStream: FileOutputStream? = null
 
+    private val usbReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (UsbManager.ACTION_USB_ACCESSORY_DETACHED == intent.action) {
+                val accessory = intent.getParcelableExtra<UsbAccessory>(UsbManager.EXTRA_ACCESSORY)
+                if (accessory != null) {
+                    Log.d(TAG, "USB Accessory Detached: ${accessory.model}")
+                    closeAccessory()
+                }
+            }
+        }
+    }
+
     inner class LocalBinder : Binder() {
         fun getService(): UsbAoaService = this@UsbAoaService
     }
@@ -33,6 +47,13 @@ class UsbAoaService : Service() {
         super.onCreate()
         usbManager = getSystemService(Context.USB_SERVICE) as UsbManager
         createNotificationChannel()
+
+        val filter = IntentFilter(UsbManager.ACTION_USB_ACCESSORY_DETACHED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(usbReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(usbReceiver, filter)
+        }
 
         // フォアグラウンドサービス開始
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -104,7 +125,7 @@ class UsbAoaService : Service() {
                 val hexString = data.joinToString(", ") { "0x%02X".format(it) }
                 Log.d(TAG, "USB Data Sent: [$hexString]")
             } catch (e: IOException) {
-                Log.e(TAG, "Error writing to accessory", e)
+                Log.e(TAG, "Error writing to accessory (Disconnected?)", e)
                 closeAccessory()
             }
         } else {
@@ -115,19 +136,21 @@ class UsbAoaService : Service() {
     }
 
     private fun closeAccessory() {
-        Log.d(TAG, "Closing accessory")
+        Log.d(TAG, "Closing accessory and clearing resources")
         try {
             outputStream?.close()
             fileDescriptor?.close()
-        } catch (e: IOException) {
+        } catch (e: Exception) {
             // ignore
         } finally {
             outputStream = null
             fileDescriptor = null
+            Log.d(TAG, "USB resources cleared. Ready for next connection.")
         }
     }
 
     override fun onDestroy() {
+        unregisterReceiver(usbReceiver)
         closeAccessory()
         super.onDestroy()
     }
