@@ -81,6 +81,7 @@ class MainActivity : AppCompatActivity() {
     private val buttonStates = mutableMapOf<Int, Boolean>()
 
     private var isEditMode = false
+    private var activeEditViewId = View.NO_ID
 
     // 各ボタンの編集サブモード（true: サイズ変更, false: 位置移動）
     private val isResizeModeMap = mutableMapOf<Int, Boolean>()
@@ -165,6 +166,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupMode() {
+        activeEditViewId = View.NO_ID
         if (isEditMode) {
             // 編集モード: 各ボタンにドラッグリスナーを設定
             buttons.forEach { button ->
@@ -202,8 +204,23 @@ class MainActivity : AppCompatActivity() {
         var lastRawX = 0f
         var lastRawY = 0f
         return View.OnTouchListener { v, event ->
-            when (event.action) {
+            // 編集モード中、既に他のボタンを操作している場合は無視
+            if (activeEditViewId != View.NO_ID && activeEditViewId != v.id) {
+                return@OnTouchListener false
+            }
+
+            // マルチタッチ（2本目以降の指）を検知した場合は操作を中断
+            if (event.pointerCount > 1) {
+                if (activeEditViewId == v.id) {
+                    activeEditViewId = View.NO_ID
+                    saveButtonPosition(v)
+                }
+                return@OnTouchListener true
+            }
+
+            when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    activeEditViewId = v.id
                     val currentTime = System.currentTimeMillis()
                     val lastTime = lastClickTimeMap[v.id] ?: 0L
                     if (currentTime - lastTime < 300) {
@@ -218,28 +235,33 @@ class MainActivity : AppCompatActivity() {
                     lastRawY = event.rawY
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    val deltaX = event.rawX - lastRawX
-                    val deltaY = event.rawY - lastRawY
-                    
-                    if (isResizeModeMap[v.id] == true) {
-                        // サイズ変更モード: Y軸の移動量で拡大縮小
-                        val scaleFactor = 1.0f + (deltaY / 500f)
-                        v.scaleX *= scaleFactor
-                        v.scaleY *= scaleFactor
-                        // 最小/最大サイズ制限
-                        v.scaleX = v.scaleX.coerceIn(0.5f, 3.0f)
-                        v.scaleY = v.scaleY.coerceIn(0.5f, 3.0f)
-                    } else {
-                        // 配置変更モード
-                        v.translationX += deltaX
-                        v.translationY += deltaY
+                    if (activeEditViewId == v.id) {
+                        val deltaX = event.rawX - lastRawX
+                        val deltaY = event.rawY - lastRawY
+                        
+                        if (isResizeModeMap[v.id] == true) {
+                            // サイズ変更モード: Y軸の移動量で拡大縮小
+                            val scaleFactor = 1.0f + (deltaY / 500f)
+                            v.scaleX *= scaleFactor
+                            v.scaleY *= scaleFactor
+                            // 最小/最大サイズ制限
+                            v.scaleX = v.scaleX.coerceIn(0.5f, 3.0f)
+                            v.scaleY = v.scaleY.coerceIn(0.5f, 3.0f)
+                        } else {
+                            // 配置変更モード
+                            v.translationX += deltaX
+                            v.translationY += deltaY
+                        }
+                        
+                        lastRawX = event.rawX
+                        lastRawY = event.rawY
                     }
-                    
-                    lastRawX = event.rawX
-                    lastRawY = event.rawY
                 }
-                MotionEvent.ACTION_UP -> {
-                    saveButtonPosition(v)
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (activeEditViewId == v.id) {
+                        activeEditViewId = View.NO_ID
+                        saveButtonPosition(v)
+                    }
                 }
             }
             true
