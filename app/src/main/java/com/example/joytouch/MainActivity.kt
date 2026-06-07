@@ -72,8 +72,8 @@ class MainActivity : AppCompatActivity() {
         manager.adapter
     }
 
-    // HIDレポート用バッファ (Byte 0: Buttons, Byte 1: X-Axis, Byte 2: Y-Axis)
-    private val reportBuffer = byteArrayOf(0, 0, 0)
+    // HIDレポート用バッファ (Byte 0: Mode, Byte 1: Buttons, Byte 2: X-Axis, Byte 3: Y-Axis)
+    private val reportBuffer = byteArrayOf(0, 0, 0, 0)
 
     // ボタンのインスタンスリスト
     private lateinit var buttons: List<MaterialButton>
@@ -82,6 +82,10 @@ class MainActivity : AppCompatActivity() {
 
     private var isEditMode = false
     private var activeEditViewId = View.NO_ID
+    private var isTouchpadMode = false
+    private var lastTouchX = 0f
+    private var lastTouchY = 0f
+    private var lastSendTime = 0L
 
     // 各ボタンの編集サブモード（true: サイズ変更, false: 位置移動）
     private val isResizeModeMap = mutableMapOf<Int, Boolean>()
@@ -140,6 +144,19 @@ class MainActivity : AppCompatActivity() {
 
         // 保存された位置を復元
         loadButtonPositions()
+
+        // タッチパッドモード切替ボタンの設定
+        val touchpadToggle = findViewById<MaterialButton>(R.id.btn_touchpad_toggle)
+        touchpadToggle.setOnClickListener {
+            if (isEditMode) return@setOnClickListener
+            isTouchpadMode = !isTouchpadMode
+            touchpadToggle.text = if (isTouchpadMode) "Gamepad" else "Touchpad"
+            findViewById<View>(R.id.touchpad_area).visibility = if (isTouchpadMode) View.VISIBLE else View.GONE
+            // モード切替時に状態リセット
+            sendHidReport()
+        }
+
+        setupTouchpad()
 
         // フルスクリーン（イマーシブモード）の設定
         hideSystemUI()
@@ -377,6 +394,14 @@ class MainActivity : AppCompatActivity() {
      * HIDレポートを送信
      */
     private fun sendHidReport() {
+        if (isTouchpadMode) {
+            reportBuffer[0] = 0x01 // Touchpad Mode
+            // Touchpadの座標とボタンは別の場所でセットして送信
+            usbAoaService?.sendData(reportBuffer)
+            return
+        }
+
+        reportBuffer[0] = 0x00 // Gamepad Mode
         var buttonsByte = 0
         if (buttonStates[R.id.btn_atk1] == true) buttonsByte = buttonsByte or 0x01
         if (buttonStates[R.id.btn_atk2] == true) buttonsByte = buttonsByte or 0x02
@@ -386,19 +411,74 @@ class MainActivity : AppCompatActivity() {
         if (buttonStates[R.id.btn_atk6] == true) buttonsByte = buttonsByte or 0x20
         if (buttonStates[R.id.btn_atk7] == true) buttonsByte = buttonsByte or 0x40
         if (buttonStates[R.id.btn_atk8] == true) buttonsByte = buttonsByte or 0x80
-        reportBuffer[0] = buttonsByte.toByte()
+        reportBuffer[1] = buttonsByte.toByte()
 
         var xAxis = 0
         if (buttonStates[R.id.btn_left] == true) xAxis = -127
         if (buttonStates[R.id.btn_right] == true) xAxis = 127
-        reportBuffer[1] = xAxis.toByte()
+        reportBuffer[2] = xAxis.toByte()
 
         var yAxis = 0
         if (buttonStates[R.id.btn_up] == true) yAxis = -127
         if (buttonStates[R.id.btn_down] == true) yAxis = 127
-        reportBuffer[2] = yAxis.toByte()
+        reportBuffer[3] = yAxis.toByte()
 
         hidService?.sendReport(1, reportBuffer)
+        usbAoaService?.sendData(reportBuffer)
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    private fun setupTouchpad() {
+        val touchpad = findViewById<View>(R.id.touchpad_area)
+        touchpad.setOnTouchListener { _, event ->
+            if (!isTouchpadMode) return@setOnTouchListener false
+
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    lastTouchX = event.x
+                    lastTouchY = event.y
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val currentTime = System.currentTimeMillis()
+                    // 送信頻度を制限（約60fps相当）
+                    if (currentTime - lastSendTime < 16) return@setOnTouchListener true
+
+                    val dx = ((event.x - lastTouchX) * 1.5f).toInt().coerceIn(-127, 127)
+                    val dy = ((event.y - lastTouchY) * 1.5f).toInt().coerceIn(-127, 127)
+                    
+                    if (dx != 0 || dy != 0) {
+                        sendTouchpadData(dx.toByte(), dy.toByte(), 0)
+                        lastTouchX = event.x
+                        lastTouchY = event.y
+                        lastSendTime = currentTime
+                    }
+                }
+            }
+            true
+        }
+
+        findViewById<MaterialButton>(R.id.btn_left_click).setOnTouchListener { _, event ->
+            handleMouseClick(event, 0x01)
+            true
+        }
+        findViewById<MaterialButton>(R.id.btn_right_click).setOnTouchListener { _, event ->
+            handleMouseClick(event, 0x02)
+            true
+        }
+    }
+
+    private fun handleMouseClick(event: MotionEvent, bit: Int) {
+        when (event.action) {
+            MotionEvent.ACTION_DOWN -> sendTouchpadData(0, 0, bit)
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> sendTouchpadData(0, 0, 0)
+        }
+    }
+
+    private fun sendTouchpadData(dx: Byte, dy: Byte, buttons: Int) {
+        reportBuffer[0] = 0x01 // Touchpad Mode
+        reportBuffer[1] = buttons.toByte()
+        reportBuffer[2] = dx
+        reportBuffer[3] = dy
         usbAoaService?.sendData(reportBuffer)
     }
 

@@ -19,13 +19,17 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import java.io.FileOutputStream
 import java.io.IOException
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 class UsbAoaService : Service() {
 
     private val binder = LocalBinder()
     private var usbManager: UsbManager? = null
     private var fileDescriptor: ParcelFileDescriptor? = null
+    @Volatile
     private var outputStream: FileOutputStream? = null
+    private val ioExecutor: ExecutorService = Executors.newSingleThreadExecutor()
 
     private val usbReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -117,16 +121,18 @@ class UsbAoaService : Service() {
     fun sendData(data: ByteArray) {
         val stream = outputStream
         if (stream != null) {
-            try {
-                stream.write(data)
-                stream.flush()
+            ioExecutor.submit {
+                try {
+                    stream.write(data)
+                    stream.flush()
 
-                // 送信データの16進数デバッグログ
-                val hexString = data.joinToString(", ") { "0x%02X".format(it) }
-                Log.d(TAG, "USB Data Sent: [$hexString]")
-            } catch (e: IOException) {
-                Log.e(TAG, "Error writing to accessory (Disconnected?)", e)
-                closeAccessory()
+                    // 送信データの16進数デバッグログ
+                    val hexString = data.joinToString(", ") { "0x%02X".format(it) }
+                    Log.d(TAG, "USB Data Sent: [$hexString]")
+                } catch (e: IOException) {
+                    Log.e(TAG, "Error writing to accessory (Disconnected?)", e)
+                    closeAccessory()
+                }
             }
         } else {
             // ここで null の場合に再接続を試みる（念のため）
@@ -152,6 +158,7 @@ class UsbAoaService : Service() {
     override fun onDestroy() {
         unregisterReceiver(usbReceiver)
         closeAccessory()
+        ioExecutor.shutdown()
         super.onDestroy()
     }
 

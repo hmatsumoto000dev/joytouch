@@ -31,6 +31,18 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
+    <!-- Touchpad Mode Toggle Button -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_touchpad_toggle"
+        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:text="Touchpad"
+        android:textSize="12sp"
+        app:layout_constraintStart_toEndOf="@+id/btn_mode_toggle"
+        app:layout_constraintTop_toTopOf="@+id/btn_mode_toggle" />
+
     <!-- Reset Layout Button (Visible only in Edit Mode) -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btn_reset"
@@ -42,8 +54,44 @@
         android:textColor="#F44336"
         android:textSize="12sp"
         android:visibility="gone"
-        app:layout_constraintStart_toEndOf="@+id/btn_mode_toggle"
+        app:layout_constraintStart_toEndOf="@+id/btn_touchpad_toggle"
         app:layout_constraintTop_toTopOf="parent" />
+
+    <FrameLayout
+        android:id="@+id/touchpad_area"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="#22FFFFFF"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/btn_mode_toggle">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="80dp"
+            android:layout_gravity="bottom"
+            android:orientation="horizontal"
+            android:padding="8dp">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_left_click"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_marginEnd="4dp"
+                android:layout_weight="1"
+                android:text="Left Click" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_right_click"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_marginStart="4dp"
+                android:layout_weight="1"
+                android:text="Right Click" />
+        </LinearLayout>
+    </FrameLayout>
 
     <!-- About Button -->
     <com.google.android.material.button.MaterialButton
