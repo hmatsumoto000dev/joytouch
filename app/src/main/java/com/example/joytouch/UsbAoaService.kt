@@ -118,6 +118,8 @@ class UsbAoaService : Service() {
         }
     }
 
+    fun isAccessoryOpened(): Boolean = outputStream != null
+
     fun sendData(data: ByteArray) {
         val stream = outputStream
         if (stream != null) {

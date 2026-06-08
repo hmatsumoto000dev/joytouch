@@ -138,8 +138,14 @@ class HidDeviceService : Service() {
     @SuppressLint("MissingPermission")
     fun sendReport(reportId: Int, data: ByteArray) {
         connectedHost?.let {
-            bluetoothHidDevice?.sendReport(it, reportId, data)
-        }
+            val success = bluetoothHidDevice?.sendReport(it, reportId, data) ?: false
+            if (success) {
+                val hexString = data.joinToString(", ") { "0x%02X".format(it) }
+                Log.d(TAG, "HID Report Sent (ID: $reportId): [$hexString]")
+            } else {
+                Log.e(TAG, "Failed to send HID Report")
+            }
+        } ?: Log.w(TAG, "Cannot send HID Report: No connected host")
     }
 
     fun isReady(): Boolean = isAppRegistered && bluetoothHidDevice != null
@@ -165,7 +171,19 @@ class HidDeviceService : Service() {
             0x09.toByte(), 0x05.toByte(), // Usage (Gamepad)
             0xa1.toByte(), 0x01.toByte(), // Collection (Application)
             0x85.toByte(), 0x01.toByte(), // Report ID (1)
-            0x05.toByte(), 0x09.toByte(), //   Usage Page (Button)
+
+            // --- 1st Byte: Mode (0x00=Gamepad, 0x01=Touchpad) ---
+            // Defined as a vendor-defined constant to make it 4 bytes total
+            0x06.toByte(), 0x00.toByte(), 0xff.toByte(), // Usage Page (Vendor Defined)
+            0x09.toByte(), 0x01.toByte(),               // Usage (Vendor Defined)
+            0x15.toByte(), 0x00.toByte(),               // Logical Minimum (0)
+            0x25.toByte(), 0xff.toByte(),               // Logical Maximum (255)
+            0x75.toByte(), 0x08.toByte(),               // Report Size (8 bits)
+            0x95.toByte(), 0x01.toByte(),               // Report Count (1)
+            0x81.toByte(), 0x02.toByte(),               // Input (Data, Variable, Absolute)
+
+            // --- 2nd Byte: Buttons (8 bits) ---
+            0x05.toByte(), 0x09.toByte(), // Usage Page (Button)
             0x19.toByte(), 0x01.toByte(), //   Usage Minimum (1)
             0x29.toByte(), 0x08.toByte(), //   Usage Maximum (8)
             0x15.toByte(), 0x00.toByte(), //   Logical Minimum (0)
@@ -173,7 +191,9 @@ class HidDeviceService : Service() {
             0x75.toByte(), 0x01.toByte(), //   Report Size (1)
             0x95.toByte(), 0x08.toByte(), //   Report Count (8)
             0x81.toByte(), 0x02.toByte(), //   Input (Data, Variable, Absolute)
-            0x05.toByte(), 0x01.toByte(), //   Usage Page (Generic Desktop)
+
+            // --- 3rd & 4th Bytes: X, Y Axes ---
+            0x05.toByte(), 0x01.toByte(), // Usage Page (Generic Desktop)
             0x09.toByte(), 0x30.toByte(), //   Usage (X)
             0x09.toByte(), 0x31.toByte(), //   Usage (Y)
             0x15.toByte(), 0x81.toByte(), //   Logical Minimum (-127)
@@ -181,6 +201,7 @@ class HidDeviceService : Service() {
             0x75.toByte(), 0x08.toByte(), //   Report Size (8)
             0x95.toByte(), 0x02.toByte(), //   Report Count (2)
             0x81.toByte(), 0x02.toByte(), //   Input (Data, Variable, Absolute)
+
             0xc0.toByte()                 // End Collection
         )
     }

@@ -397,7 +397,9 @@ class MainActivity : AppCompatActivity() {
         if (isTouchpadMode) {
             reportBuffer[0] = 0x01 // Touchpad Mode
             // Touchpadの座標とボタンは別の場所でセットして送信
-            usbAoaService?.sendData(reportBuffer)
+            if (usbAoaService?.isAccessoryOpened() == true) {
+                usbAoaService?.sendData(reportBuffer)
+            }
             return
         }
 
@@ -423,8 +425,15 @@ class MainActivity : AppCompatActivity() {
         if (buttonStates[R.id.btn_down] == true) yAxis = 127
         reportBuffer[3] = yAxis.toByte()
 
-        hidService?.sendReport(1, reportBuffer)
-        usbAoaService?.sendData(reportBuffer)
+        // Bluetooth (HID) 送信
+        if (hidService?.isReady() == true && hidService?.getConnectionState() == BluetoothProfile.STATE_CONNECTED) {
+            hidService?.sendReport(1, reportBuffer)
+        }
+
+        // USB (AOA) 送信
+        if (usbAoaService?.isAccessoryOpened() == true) {
+            usbAoaService?.sendData(reportBuffer)
+        }
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -479,7 +488,9 @@ class MainActivity : AppCompatActivity() {
         reportBuffer[1] = buttons.toByte()
         reportBuffer[2] = dx
         reportBuffer[3] = dy
-        usbAoaService?.sendData(reportBuffer)
+        if (usbAoaService?.isAccessoryOpened() == true) {
+            usbAoaService?.sendData(reportBuffer)
+        }
     }
 
     private fun checkPermissions() {
