@@ -108,8 +108,8 @@ class HidDeviceService : Service() {
         }
 
         val sdp = BluetoothHidDeviceAppSdpSettings(
-            "Android Gamepad",
-            "Android HID Gamepad",
+            "JoyTouch Combo",
+            "HID Gamepad and Mouse",
             "Android",
             0x04,
             HID_REPORT_DESCRIPTOR
@@ -167,42 +167,73 @@ class HidDeviceService : Service() {
         private const val NOTIFICATION_ID = 1
 
         private val HID_REPORT_DESCRIPTOR = byteArrayOf(
+            // --- Gamepad (Report ID 1) ---
             0x05.toByte(), 0x01.toByte(), // Usage Page (Generic Desktop)
             0x09.toByte(), 0x05.toByte(), // Usage (Gamepad)
             0xa1.toByte(), 0x01.toByte(), // Collection (Application)
-            0x85.toByte(), 0x01.toByte(), // Report ID (1)
+            0x85.toByte(), 0x01.toByte(), //   Report ID (1)
 
-            // --- 1st Byte: Mode (0x00=Gamepad, 0x01=Touchpad) ---
-            // Defined as a vendor-defined constant to make it 4 bytes total
-            0x06.toByte(), 0x00.toByte(), 0xff.toByte(), // Usage Page (Vendor Defined)
-            0x09.toByte(), 0x01.toByte(),               // Usage (Vendor Defined)
-            0x15.toByte(), 0x00.toByte(),               // Logical Minimum (0)
-            0x25.toByte(), 0xff.toByte(),               // Logical Maximum (255)
-            0x75.toByte(), 0x08.toByte(),               // Report Size (8 bits)
-            0x95.toByte(), 0x01.toByte(),               // Report Count (1)
-            0x81.toByte(), 0x02.toByte(),               // Input (Data, Variable, Absolute)
+            // 1st Byte: Mode (Vendor Defined)
+            0x06.toByte(), 0x00.toByte(), 0xff.toByte(),
+            0x09.toByte(), 0x01.toByte(),
+            0x15.toByte(), 0x00.toByte(),
+            0x25.toByte(), 0xff.toByte(),
+            0x75.toByte(), 0x08.toByte(),
+            0x95.toByte(), 0x01.toByte(),
+            0x81.toByte(), 0x02.toByte(),
 
-            // --- 2nd Byte: Buttons (8 bits) ---
-            0x05.toByte(), 0x09.toByte(), // Usage Page (Button)
-            0x19.toByte(), 0x01.toByte(), //   Usage Minimum (1)
-            0x29.toByte(), 0x08.toByte(), //   Usage Maximum (8)
-            0x15.toByte(), 0x00.toByte(), //   Logical Minimum (0)
-            0x25.toByte(), 0x01.toByte(), //   Logical Maximum (1)
-            0x75.toByte(), 0x01.toByte(), //   Report Size (1)
-            0x95.toByte(), 0x08.toByte(), //   Report Count (8)
-            0x81.toByte(), 0x02.toByte(), //   Input (Data, Variable, Absolute)
+            // 2nd Byte: Buttons
+            0x05.toByte(), 0x09.toByte(),
+            0x19.toByte(), 0x01.toByte(),
+            0x29.toByte(), 0x08.toByte(),
+            0x15.toByte(), 0x00.toByte(),
+            0x25.toByte(), 0x01.toByte(),
+            0x75.toByte(), 0x01.toByte(),
+            0x95.toByte(), 0x08.toByte(),
+            0x81.toByte(), 0x02.toByte(),
 
-            // --- 3rd & 4th Bytes: X, Y Axes ---
+            // 3rd & 4th Bytes: Axes
+            0x05.toByte(), 0x01.toByte(),
+            0x09.toByte(), 0x30.toByte(),
+            0x09.toByte(), 0x31.toByte(),
+            0x15.toByte(), 0x81.toByte(),
+            0x25.toByte(), 0x7f.toByte(),
+            0x75.toByte(), 0x08.toByte(),
+            0x95.toByte(), 0x02.toByte(),
+            0x81.toByte(), 0x02.toByte(),
+            0xc0.toByte(),                 // End Gamepad Application Collection
+
+            // --- Mouse (Report ID 2) ---
             0x05.toByte(), 0x01.toByte(), // Usage Page (Generic Desktop)
-            0x09.toByte(), 0x30.toByte(), //   Usage (X)
-            0x09.toByte(), 0x31.toByte(), //   Usage (Y)
-            0x15.toByte(), 0x81.toByte(), //   Logical Minimum (-127)
-            0x25.toByte(), 0x7f.toByte(), //   Logical Maximum (127)
-            0x75.toByte(), 0x08.toByte(), //   Report Size (8)
-            0x95.toByte(), 0x02.toByte(), //   Report Count (2)
-            0x81.toByte(), 0x02.toByte(), //   Input (Data, Variable, Absolute)
-
-            0xc0.toByte()                 // End Collection
+            0x09.toByte(), 0x02.toByte(), // Usage (Mouse)
+            0xa1.toByte(), 0x01.toByte(), // Collection (Application)
+            0x85.toByte(), 0x02.toByte(), //   Report ID (2)
+            0x09.toByte(), 0x01.toByte(), //   Usage (Pointer)
+            0xa1.toByte(), 0x00.toByte(), //   Collection (Physical)
+            // Buttons (3)
+            0x05.toByte(), 0x09.toByte(),
+            0x19.toByte(), 0x01.toByte(),
+            0x29.toByte(), 0x03.toByte(),
+            0x15.toByte(), 0x00.toByte(),
+            0x25.toByte(), 0x01.toByte(),
+            0x95.toByte(), 0x03.toByte(),
+            0x75.toByte(), 0x01.toByte(),
+            0x81.toByte(), 0x02.toByte(),
+            // Padding (5 bits)
+            0x95.toByte(), 0x01.toByte(),
+            0x75.toByte(), 0x05.toByte(),
+            0x81.toByte(), 0x03.toByte(),
+            // X, Y Displacement
+            0x05.toByte(), 0x01.toByte(),
+            0x09.toByte(), 0x30.toByte(),
+            0x09.toByte(), 0x31.toByte(),
+            0x15.toByte(), 0x81.toByte(),
+            0x25.toByte(), 0x7f.toByte(),
+            0x75.toByte(), 0x08.toByte(),
+            0x95.toByte(), 0x02.toByte(),
+            0x81.toByte(), 0x06.toByte(),
+            0xc0.toByte(),                //   End Pointer Physical Collection
+            0xc0.toByte()                 // End Mouse Application Collection
         )
     }
 }

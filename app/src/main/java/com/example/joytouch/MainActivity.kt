@@ -488,8 +488,16 @@ class MainActivity : AppCompatActivity() {
         reportBuffer[1] = buttons.toByte()
         reportBuffer[2] = dx
         reportBuffer[3] = dy
+
+        // USB AOA 送信
         if (usbAoaService?.isAccessoryOpened() == true) {
             usbAoaService?.sendData(reportBuffer)
+        }
+
+        // Bluetooth (HID) 送信 - マウス用 Report ID 2
+        if (hidService?.isReady() == true && hidService?.getConnectionState() == BluetoothProfile.STATE_CONNECTED) {
+            val mouseBuffer = byteArrayOf(buttons.toByte(), dx, dy)
+            hidService?.sendReport(2, mouseBuffer)
         }
     }
 
