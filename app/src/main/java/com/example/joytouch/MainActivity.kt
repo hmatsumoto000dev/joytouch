@@ -126,15 +126,45 @@ class MainActivity : AppCompatActivity() {
             isResizeModeMap[it.id] = false
         }
 
-        // モード切替ボタンの設定
-        val modeToggle = findViewById<MaterialButton>(R.id.btn_mode_toggle)
+        // モード切替ボタンの設定（後方互換性のためのダミー取得）
         val resetBtn = findViewById<MaterialButton>(R.id.btn_reset)
 
-        modeToggle.setOnClickListener {
-            isEditMode = !isEditMode
-            modeToggle.text = if (isEditMode) getString(R.string.mode_edit) else getString(R.string.mode_play)
-            resetBtn.visibility = if (isEditMode) View.VISIBLE else View.GONE
-            setupMode()
+        // ナビゲーションメニューの設定
+        val topNav = findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(R.id.top_navigation)
+        topNav.setOnItemSelectedListener { item ->
+            when (item.itemId) {
+                R.id.nav_gamepad -> {
+                    if (isEditMode) return@setOnItemSelectedListener false
+                    isTouchpadMode = false
+                    findViewById<View>(R.id.touchpad_area).visibility = View.GONE
+                    sendHidReport()
+                    true
+                }
+                R.id.nav_touchpad -> {
+                    if (isEditMode) return@setOnItemSelectedListener false
+                    isTouchpadMode = true
+                    findViewById<View>(R.id.touchpad_area).visibility = View.VISIBLE
+                    sendHidReport()
+                    true
+                }
+                R.id.nav_edit -> {
+                    isEditMode = !isEditMode
+                    resetBtn.visibility = if (isEditMode) View.VISIBLE else View.GONE
+                    setupMode()
+                    // 編集モード中は他のメニューを無効化するなどの視覚的フィードバック
+                    item.title = if (isEditMode) "Play Mode" else "Edit Mode"
+                    true
+                }
+                R.id.nav_connect -> {
+                    connectToHost()
+                    false // 選択状態にはしない
+                }
+                R.id.nav_about -> {
+                    showAboutDialog()
+                    false // 選択状態にはしない
+                }
+                else -> false
+            }
         }
 
         // 初期配置に戻すボタン
@@ -145,31 +175,10 @@ class MainActivity : AppCompatActivity() {
         // 保存された位置を復元
         loadButtonPositions()
 
-        // タッチパッドモード切替ボタンの設定
-        val touchpadToggle = findViewById<MaterialButton>(R.id.btn_touchpad_toggle)
-        touchpadToggle.setOnClickListener {
-            if (isEditMode) return@setOnClickListener
-            isTouchpadMode = !isTouchpadMode
-            touchpadToggle.text = if (isTouchpadMode) "Gamepad" else "Touchpad"
-            findViewById<View>(R.id.touchpad_area).visibility = if (isTouchpadMode) View.VISIBLE else View.GONE
-            // モード切替時に状態リセット
-            sendHidReport()
-        }
-
         setupTouchpad()
 
         // フルスクリーン（イマーシブモード）の設定
         hideSystemUI()
-
-        // Aboutボタンの設定
-        findViewById<View>(R.id.btn_about).setOnClickListener {
-            showAboutDialog()
-        }
-
-        // Connectボタンの設定
-        findViewById<View>(R.id.btn_connect).setOnClickListener {
-            connectToHost()
-        }
 
         // ルートレイアウトにマルチタッチリスナーを設定
         val mainLayout = findViewById<View>(R.id.main_layout)

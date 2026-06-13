@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item
+        android:id="@+id/nav_gamepad"
+        android:icon="@android:drawable/ic_menu_compass"
+        android:title="Gamepad" />
+    <item
+        android:id="@+id/nav_touchpad"
+        android:icon="@android:drawable/ic_menu_mylocation"
+        android:title="Touchpad" />
+    <item
+        android:id="@+id/nav_edit"
+        android:icon="@android:drawable/ic_menu_edit"
+        android:title="Edit" />
+    <item
+        android:id="@+id/nav_connect"
+        android:icon="@android:drawable/stat_sys_data_bluetooth"
+        android:title="Connect" />
+    <item
+        android:id="@+id/nav_about"
+        android:icon="@android:drawable/ic_menu_info_details"
+        android:title="About" />
+</menu>
