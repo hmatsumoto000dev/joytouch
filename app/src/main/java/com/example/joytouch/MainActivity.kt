@@ -25,7 +25,6 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.google.android.material.button.MaterialButton
 
-@RequiresApi(Build.VERSION_CODES.P)
 class MainActivity : AppCompatActivity() {
 
     // Service関連
@@ -100,9 +99,11 @@ class MainActivity : AppCompatActivity() {
         checkPermissions()
 
         // サービスの開始とバインド
-        val hidIntent = Intent(this, HidDeviceService::class.java)
-        startForegroundService(hidIntent)
-        bindService(hidIntent, connection, Context.BIND_AUTO_CREATE)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val hidIntent = Intent(this, HidDeviceService::class.java)
+            startForegroundService(hidIntent)
+            bindService(hidIntent, connection, Context.BIND_AUTO_CREATE)
+        }
 
         val usbIntent = Intent(this, UsbAoaService::class.java)
         startForegroundService(usbIntent)
@@ -156,7 +157,11 @@ class MainActivity : AppCompatActivity() {
                     true
                 }
                 R.id.nav_connect -> {
-                    connectToHost()
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        connectToHost()
+                    } else {
+                        Toast.makeText(this, "Bluetooth HID is not supported on this Android version", Toast.LENGTH_LONG).show()
+                    }
                     false // 選択状態にはしない
                 }
                 R.id.nav_about -> {
@@ -357,6 +362,7 @@ class MainActivity : AppCompatActivity() {
     /**
      * ペアリング済みのホスト(PC)へ接続を要求する
      */
+    @RequiresApi(Build.VERSION_CODES.P)
     @SuppressLint("MissingPermission")
     private fun connectToHost() {
         val service = hidService
