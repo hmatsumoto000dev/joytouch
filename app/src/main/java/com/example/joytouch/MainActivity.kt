@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.hardware.usb.UsbManager
 import android.os.Build
 import android.os.Bundle
@@ -16,14 +17,20 @@ import android.util.Log
 import android.view.MotionEvent
 import android.view.View
 import android.widget.Toast
+import android.net.Uri
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.PopupMenu
 import androidx.core.app.ActivityCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.navigation.NavigationBarView
+import org.json.JSONObject
+import java.io.IOException
 
 class MainActivity : AppCompatActivity() {
 
@@ -86,10 +93,24 @@ class MainActivity : AppCompatActivity() {
     private var lastTouchY = 0f
     private var lastSendTime = 0L
 
+    // ナビゲーションバー（横画面: TopNav, 縦画面: SideNav）
+    private lateinit var topNav: NavigationBarView
+    private lateinit var sideNav: NavigationBarView
+    private var isSyncingNav = false
+
     // 各ボタンの編集サブモード（true: サイズ変更, false: 位置移動）
     private val isResizeModeMap = mutableMapOf<Int, Boolean>()
     // ダブルタップ判定用
     private val lastClickTimeMap = mutableMapOf<Int, Long>()
+
+    // JSON レイアウトのエクスポート・インポート用ランチャー
+    private val exportLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri: Uri? ->
+        uri?.let { exportLayoutToJson(it) }
+    }
+
+    private val importLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        uri?.let { importLayoutFromJson(it) }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -127,33 +148,34 @@ class MainActivity : AppCompatActivity() {
             isResizeModeMap[it.id] = false
         }
 
-        // モード切替ボタンの設定（後方互換性のためのダミー取得）
-        val resetBtn = findViewById<MaterialButton>(R.id.btn_reset)
+        // ナビゲーションメニューの設定（横画面: topNav, 縦画面: sideNav）
+        topNav = findViewById(R.id.top_navigation)
+        sideNav = findViewById(R.id.side_navigation)
 
-        // ナビゲーションメニューの設定
-        val topNav = findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(R.id.top_navigation)
-        topNav.setOnItemSelectedListener { item ->
+        val navListener = NavigationBarView.OnItemSelectedListener { item ->
             when (item.itemId) {
                 R.id.nav_gamepad -> {
-                    if (isEditMode) return@setOnItemSelectedListener false
+                    if (isEditMode) return@OnItemSelectedListener false
                     isTouchpadMode = false
                     findViewById<View>(R.id.touchpad_area).visibility = View.GONE
                     sendHidReport()
+                    syncNavSelection(R.id.nav_gamepad)
                     true
                 }
                 R.id.nav_touchpad -> {
-                    if (isEditMode) return@setOnItemSelectedListener false
+                    if (isEditMode) return@OnItemSelectedListener false
                     isTouchpadMode = true
                     findViewById<View>(R.id.touchpad_area).visibility = View.VISIBLE
                     sendHidReport()
+                    syncNavSelection(R.id.nav_touchpad)
                     true
                 }
                 R.id.nav_edit -> {
                     isEditMode = !isEditMode
-                    resetBtn.visibility = if (isEditMode) View.VISIBLE else View.GONE
                     setupMode()
-                    // 編集モード中は他のメニューを無効化するなどの視覚的フィードバック
-                    item.title = if (isEditMode) "Play Mode" else "Edit Mode"
+                    val title = if (isEditMode) "Play Mode" else "Edit Mode"
+                    topNav.menu.findItem(R.id.nav_edit)?.title = title
+                    sideNav.menu.findItem(R.id.nav_edit)?.title = title
                     true
                 }
                 R.id.nav_connect -> {
@@ -164,18 +186,21 @@ class MainActivity : AppCompatActivity() {
                     }
                     false // 選択状態にはしない
                 }
-                R.id.nav_about -> {
-                    showAboutDialog()
+                R.id.nav_more -> {
+                    val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+                    val activeBar = if (isLandscape) topNav else sideNav
+                    val anchor = activeBar.findViewById<View>(R.id.nav_more) ?: activeBar
+                    showOverflowMenu(anchor)
                     false // 選択状態にはしない
                 }
                 else -> false
             }
         }
 
-        // 初期配置に戻すボタン
-        resetBtn.setOnClickListener {
-            resetLayout()
-        }
+        topNav.setOnItemSelectedListener(navListener)
+        sideNav.setOnItemSelectedListener(navListener)
+
+        updateOrientation(resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE)
 
         // 保存された位置を復元
         loadButtonPositions()
@@ -194,6 +219,60 @@ class MainActivity : AppCompatActivity() {
             v.performClick()
             true
         }
+    }
+
+    private fun showOverflowMenu(anchor: View) {
+        val popup = PopupMenu(this, anchor)
+        popup.menuInflater.inflate(R.menu.overflow_menu, popup.menu)
+        popup.setOnMenuItemClickListener { menuItem ->
+            when (menuItem.itemId) {
+                R.id.menu_layout -> {
+                    showLayoutDialog()
+                    true
+                }
+                R.id.menu_about -> {
+                    showAboutDialog()
+                    true
+                }
+                else -> false
+            }
+        }
+        popup.show()
+    }
+
+    private fun syncNavSelection(selectedId: Int) {
+        if (isSyncingNav) return
+        isSyncingNav = true
+        try {
+            if (topNav.selectedItemId != selectedId) topNav.selectedItemId = selectedId
+            if (sideNav.selectedItemId != selectedId) sideNav.selectedItemId = selectedId
+        } finally {
+            isSyncingNav = false
+        }
+    }
+
+    private fun updateOrientation(isLandscape: Boolean) {
+        val mainLayout = findViewById<View>(R.id.main_layout)
+        if (isLandscape) {
+            topNav.visibility = View.VISIBLE
+            sideNav.visibility = View.GONE
+            mainLayout.setPadding(dpToPx(48), 0, dpToPx(48), 0)
+        } else {
+            topNav.visibility = View.GONE
+            sideNav.visibility = View.VISIBLE
+            mainLayout.setPadding(0, 0, 0, 0)
+        }
+        val editTitle = if (isEditMode) "Play Mode" else "Edit Mode"
+        topNav.menu.findItem(R.id.nav_edit)?.title = editTitle
+        sideNav.menu.findItem(R.id.nav_edit)?.title = editTitle
+    }
+
+    private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).toInt()
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        updateOrientation(newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE)
+        hideSystemUI()
     }
 
     private fun setupMode() {
@@ -308,6 +387,76 @@ class MainActivity : AppCompatActivity() {
             saveButtonPosition(button)
         }
         Toast.makeText(this, "Layout Reset", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun exportLayoutToJson(uri: Uri) {
+        try {
+            val rootJson = JSONObject().apply {
+                put("app", "joytouch")
+                put("version", 1)
+                val buttonsObj = JSONObject()
+                buttons.forEach { button ->
+                    val name = resources.getResourceEntryName(button.id)
+                    val btnData = JSONObject().apply {
+                        put("tx", button.translationX.toDouble())
+                        put("ty", button.translationY.toDouble())
+                        put("sx", button.scaleX.toDouble())
+                        put("sy", button.scaleY.toDouble())
+                    }
+                    buttonsObj.put(name, btnData)
+                }
+                put("buttons", buttonsObj)
+            }
+
+            contentResolver.openOutputStream(uri)?.use { outputStream ->
+                outputStream.write(rootJson.toString(2).toByteArray(Charsets.UTF_8))
+            }
+            Toast.makeText(this, getString(R.string.msg_export_success), Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to export layout", e)
+            Toast.makeText(this, "${getString(R.string.msg_export_failed)}: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun importLayoutFromJson(uri: Uri) {
+        try {
+            val jsonStr = contentResolver.openInputStream(uri)?.use { inputStream ->
+                inputStream.bufferedReader(Charsets.UTF_8).readText()
+            } ?: throw IOException("Could not read file")
+
+            val rootJson = JSONObject(jsonStr)
+            val buttonsObj = rootJson.optJSONObject("buttons")
+                ?: throw IllegalArgumentException("Missing buttons layout data")
+
+            val prefs = getSharedPreferences("button_prefs", Context.MODE_PRIVATE)
+            prefs.edit().apply {
+                buttons.forEach { button ->
+                    val name = resources.getResourceEntryName(button.id)
+                    val btnData = buttonsObj.optJSONObject(name)
+                    if (btnData != null) {
+                        val tx = btnData.optDouble("tx", 0.0).toFloat()
+                        val ty = btnData.optDouble("ty", 0.0).toFloat()
+                        val sx = btnData.optDouble("sx", 1.0).toFloat()
+                        val sy = btnData.optDouble("sy", 1.0).toFloat()
+
+                        button.translationX = tx
+                        button.translationY = ty
+                        button.scaleX = sx
+                        button.scaleY = sy
+
+                        putFloat("${name}_tx", tx)
+                        putFloat("${name}_ty", ty)
+                        putFloat("${name}_sx", sx)
+                        putFloat("${name}_sy", sy)
+                    }
+                }
+                apply()
+            }
+            Toast.makeText(this, getString(R.string.msg_import_success), Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to import layout", e)
+            Toast.makeText(this, "${getString(R.string.msg_import_failed)}: ${e.message}", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun saveButtonPosition(view: View) {
@@ -535,6 +684,32 @@ class MainActivity : AppCompatActivity() {
                 ActivityCompat.requestPermissions(this, requestList.toTypedArray(), 1)
             }
         }
+    }
+
+    private fun showLayoutDialog() {
+        val options = arrayOf(
+            getString(R.string.btn_export),
+            getString(R.string.btn_import),
+            getString(R.string.btn_reset)
+        )
+        AlertDialog.Builder(this)
+            .setTitle(R.string.layout_menu_title)
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> exportLauncher.launch("joytouch_layout.json")
+                    1 -> importLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
+                    2 -> {
+                        AlertDialog.Builder(this)
+                            .setTitle(R.string.btn_reset)
+                            .setMessage(R.string.msg_reset_confirm)
+                            .setPositiveButton(R.string.about_ok) { _, _ -> resetLayout() }
+                            .setNegativeButton(R.string.dialog_cancel, null)
+                            .show()
+                    }
+                }
+            }
+            .setNegativeButton(R.string.dialog_cancel, null)
+            .show()
     }
 
     private fun showAboutDialog() {
