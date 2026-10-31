@@ -27,7 +27,11 @@
     <string name="msg_import_failed">Failed to import layout</string>
     <string name="nav_layout">Layout</string>
     <string name="layout_menu_title">Button Layout</string>
-    <string name="msg_reset_confirm">Reset button layout to default?</string>
+    <string name="layout_menu_title_with_mode">Button Layout (%1$s)</string>
+    <string name="orientation_landscape">Landscape</string>
+    <string name="orientation_portrait">Portrait</string>
+    <string name="msg_reset_confirm">Reset %1$s layout to default?</string>
+    <string name="msg_reset_done">Reset %1$s layout</string>
     <string name="dialog_cancel">Cancel</string>
     <string name="nav_more">More</string>
     <string name="menu_layout">Button Layout…</string>

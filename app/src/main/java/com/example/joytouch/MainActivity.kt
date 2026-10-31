@@ -187,7 +187,7 @@ class MainActivity : AppCompatActivity() {
                     false // 選択状態にはしない
                 }
                 R.id.nav_more -> {
-                    val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+                    val isLandscape = isLandscape()
                     val activeBar = if (isLandscape) topNav else sideNav
                     val anchor = activeBar.findViewById<View>(R.id.nav_more) ?: activeBar
                     showOverflowMenu(anchor)
@@ -199,6 +199,9 @@ class MainActivity : AppCompatActivity() {
 
         topNav.setOnItemSelectedListener(navListener)
         sideNav.setOnItemSelectedListener(navListener)
+
+        // 既存の横画面設定があれば移行
+        migrateOldPrefsIfNeeded()
 
         updateOrientation(resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE)
 
@@ -272,7 +275,30 @@ class MainActivity : AppCompatActivity() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         updateOrientation(newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE)
+        loadButtonPositions()
         hideSystemUI()
+    }
+
+    private fun isLandscape(): Boolean =
+        resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+    private fun getPrefsName(isLand: Boolean = isLandscape()): String =
+        if (isLand) "button_prefs_land" else "button_prefs_port"
+
+    private fun getPrefs(): android.content.SharedPreferences =
+        getSharedPreferences(getPrefsName(), Context.MODE_PRIVATE)
+
+    private fun migrateOldPrefsIfNeeded() {
+        val oldPrefs = getSharedPreferences("button_prefs", Context.MODE_PRIVATE)
+        val landPrefs = getSharedPreferences("button_prefs_land", Context.MODE_PRIVATE)
+        if (landPrefs.all.isEmpty() && oldPrefs.all.isNotEmpty()) {
+            landPrefs.edit().apply {
+                oldPrefs.all.forEach { (key, value) ->
+                    if (value is Float) putFloat(key, value)
+                }
+                apply()
+            }
+        }
     }
 
     private fun setupMode() {
@@ -386,26 +412,40 @@ class MainActivity : AppCompatActivity() {
             button.scaleY = 1.0f
             saveButtonPosition(button)
         }
-        Toast.makeText(this, "Layout Reset", Toast.LENGTH_SHORT).show()
+        val mode = if (isLandscape()) getString(R.string.orientation_landscape) else getString(R.string.orientation_portrait)
+        Toast.makeText(this, getString(R.string.msg_reset_done, mode), Toast.LENGTH_SHORT).show()
+    }
+
+    private fun exportPrefsToJson(prefsName: String): JSONObject {
+        val prefs = getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+        val isCurrent = (prefsName == "button_prefs_land" && isLandscape()) ||
+                        (prefsName == "button_prefs_port" && !isLandscape())
+        val obj = JSONObject()
+        buttons.forEach { button ->
+            val name = resources.getResourceEntryName(button.id)
+            val tx = if (isCurrent) button.translationX else prefs.getFloat("${name}_tx", 0f)
+            val ty = if (isCurrent) button.translationY else prefs.getFloat("${name}_ty", 0f)
+            val sx = if (isCurrent) button.scaleX else prefs.getFloat("${name}_sx", 1.0f)
+            val sy = if (isCurrent) button.scaleY else prefs.getFloat("${name}_sy", 1.0f)
+
+            val btnObj = JSONObject().apply {
+                put("tx", tx.toDouble())
+                put("ty", ty.toDouble())
+                put("sx", sx.toDouble())
+                put("sy", sy.toDouble())
+            }
+            obj.put(name, btnObj)
+        }
+        return obj
     }
 
     private fun exportLayoutToJson(uri: Uri) {
         try {
             val rootJson = JSONObject().apply {
                 put("app", "joytouch")
-                put("version", 1)
-                val buttonsObj = JSONObject()
-                buttons.forEach { button ->
-                    val name = resources.getResourceEntryName(button.id)
-                    val btnData = JSONObject().apply {
-                        put("tx", button.translationX.toDouble())
-                        put("ty", button.translationY.toDouble())
-                        put("sx", button.scaleX.toDouble())
-                        put("sy", button.scaleY.toDouble())
-                    }
-                    buttonsObj.put(name, btnData)
-                }
-                put("buttons", buttonsObj)
+                put("version", 2)
+                put("landscape", exportPrefsToJson("button_prefs_land"))
+                put("portrait", exportPrefsToJson("button_prefs_port"))
             }
 
             contentResolver.openOutputStream(uri)?.use { outputStream ->
@@ -418,6 +458,28 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun importJsonToPrefs(buttonsObj: JSONObject, prefsName: String) {
+        val prefs = getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+        prefs.edit().apply {
+            buttons.forEach { button ->
+                val name = resources.getResourceEntryName(button.id)
+                val btnData = buttonsObj.optJSONObject(name)
+                if (btnData != null) {
+                    val tx = btnData.optDouble("tx", 0.0).toFloat()
+                    val ty = btnData.optDouble("ty", 0.0).toFloat()
+                    val sx = btnData.optDouble("sx", 1.0).toFloat()
+                    val sy = btnData.optDouble("sy", 1.0).toFloat()
+
+                    putFloat("${name}_tx", tx)
+                    putFloat("${name}_ty", ty)
+                    putFloat("${name}_sx", sx)
+                    putFloat("${name}_sy", sy)
+                }
+            }
+            apply()
+        }
+    }
+
     private fun importLayoutFromJson(uri: Uri) {
         try {
             val jsonStr = contentResolver.openInputStream(uri)?.use { inputStream ->
@@ -425,33 +487,29 @@ class MainActivity : AppCompatActivity() {
             } ?: throw IOException("Could not read file")
 
             val rootJson = JSONObject(jsonStr)
-            val buttonsObj = rootJson.optJSONObject("buttons")
-                ?: throw IllegalArgumentException("Missing buttons layout data")
 
-            val prefs = getSharedPreferences("button_prefs", Context.MODE_PRIVATE)
-            prefs.edit().apply {
-                buttons.forEach { button ->
-                    val name = resources.getResourceEntryName(button.id)
-                    val btnData = buttonsObj.optJSONObject(name)
-                    if (btnData != null) {
-                        val tx = btnData.optDouble("tx", 0.0).toFloat()
-                        val ty = btnData.optDouble("ty", 0.0).toFloat()
-                        val sx = btnData.optDouble("sx", 1.0).toFloat()
-                        val sy = btnData.optDouble("sy", 1.0).toFloat()
+            val landObj = rootJson.optJSONObject("landscape")
+            val portObj = rootJson.optJSONObject("portrait")
+            val legacyButtonsObj = rootJson.optJSONObject("buttons")
 
-                        button.translationX = tx
-                        button.translationY = ty
-                        button.scaleX = sx
-                        button.scaleY = sy
-
-                        putFloat("${name}_tx", tx)
-                        putFloat("${name}_ty", ty)
-                        putFloat("${name}_sx", sx)
-                        putFloat("${name}_sy", sy)
-                    }
-                }
-                apply()
+            if (landObj == null && portObj == null && legacyButtonsObj == null) {
+                throw IllegalArgumentException("Missing buttons layout data")
             }
+
+            if (landObj != null) {
+                importJsonToPrefs(landObj, "button_prefs_land")
+            }
+            if (portObj != null) {
+                importJsonToPrefs(portObj, "button_prefs_port")
+            }
+            if (legacyButtonsObj != null && landObj == null) {
+                // v1 形式の後方互換性（横画面用として取り込む）
+                importJsonToPrefs(legacyButtonsObj, "button_prefs_land")
+            }
+
+            // 現在の向きに合わせて画面上のボタン位置を即座に再読み込み
+            loadButtonPositions()
+
             Toast.makeText(this, getString(R.string.msg_import_success), Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
             Log.e("MainActivity", "Failed to import layout", e)
@@ -460,7 +518,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun saveButtonPosition(view: View) {
-        val prefs = getSharedPreferences("button_prefs", Context.MODE_PRIVATE)
+        val prefs = getPrefs()
         val buttonName = resources.getResourceEntryName(view.id)
         prefs.edit().apply {
             putFloat("${buttonName}_tx", view.translationX)
@@ -472,7 +530,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadButtonPositions() {
-        val prefs = getSharedPreferences("button_prefs", Context.MODE_PRIVATE)
+        val prefs = getPrefs()
         buttons.forEach { button ->
             val buttonName = resources.getResourceEntryName(button.id)
             button.translationX = prefs.getFloat("${buttonName}_tx", 0f)
@@ -692,8 +750,9 @@ class MainActivity : AppCompatActivity() {
             getString(R.string.btn_import),
             getString(R.string.btn_reset)
         )
+        val mode = if (isLandscape()) getString(R.string.orientation_landscape) else getString(R.string.orientation_portrait)
         AlertDialog.Builder(this)
-            .setTitle(R.string.layout_menu_title)
+            .setTitle(getString(R.string.layout_menu_title_with_mode, mode))
             .setItems(options) { _, which ->
                 when (which) {
                     0 -> exportLauncher.launch("joytouch_layout.json")
@@ -701,7 +760,7 @@ class MainActivity : AppCompatActivity() {
                     2 -> {
                         AlertDialog.Builder(this)
                             .setTitle(R.string.btn_reset)
-                            .setMessage(R.string.msg_reset_confirm)
+                            .setMessage(getString(R.string.msg_reset_confirm, mode))
                             .setPositiveButton(R.string.about_ok) { _, _ -> resetLayout() }
                             .setNegativeButton(R.string.dialog_cancel, null)
                             .show()
