@@ -1,2 +1,2 @@
 # joytouch
-touch pad style game controller by android
+touch pad style game controller for android
