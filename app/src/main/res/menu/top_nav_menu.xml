@@ -2,21 +2,21 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
     <item
-        android:id="@+id/nav_gamepad"
+        android:id="@+id/nav_mode_toggle"
         android:icon="@android:drawable/ic_menu_compass"
-        android:title="Gamepad" />
+        android:title="@string/nav_mode_gamepad" />
     <item
-        android:id="@+id/nav_touchpad"
-        android:icon="@android:drawable/ic_menu_mylocation"
-        android:title="Touchpad" />
+        android:id="@+id/nav_orientation"
+        android:icon="@drawable/ic_screen_rotation"
+        android:title="@string/orientation_landscape" />
     <item
         android:id="@+id/nav_edit"
         android:icon="@android:drawable/ic_menu_edit"
-        android:title="Edit" />
+        android:title="@string/nav_edit" />
     <item
         android:id="@+id/nav_connect"
         android:icon="@android:drawable/stat_sys_data_bluetooth"
-        android:title="Connect" />
+        android:title="@string/btn_connect" />
     <item
         android:id="@+id/nav_more"
         android:icon="@android:drawable/ic_menu_more"

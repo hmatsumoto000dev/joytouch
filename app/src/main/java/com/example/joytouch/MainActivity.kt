@@ -7,6 +7,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.hardware.usb.UsbManager
@@ -96,7 +97,6 @@ class MainActivity : AppCompatActivity() {
     // ナビゲーションバー（横画面: TopNav, 縦画面: SideNav）
     private lateinit var topNav: NavigationBarView
     private lateinit var sideNav: NavigationBarView
-    private var isSyncingNav = false
 
     // 各ボタンの編集サブモード（true: サイズ変更, false: 位置移動）
     private val isResizeModeMap = mutableMapOf<Int, Boolean>()
@@ -114,6 +114,16 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // 画面の向きを復元（手動トグルによる向き設定を優先）
+        val savedOrientation = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+            .getString("screen_orientation", "landscape")
+        requestedOrientation = if (savedOrientation == "portrait") {
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        }
+
         setContentView(R.layout.activity_main)
 
         // 権限チェック
@@ -154,29 +164,42 @@ class MainActivity : AppCompatActivity() {
 
         val navListener = NavigationBarView.OnItemSelectedListener { item ->
             when (item.itemId) {
-                R.id.nav_gamepad -> {
-                    if (isEditMode) return@OnItemSelectedListener false
-                    isTouchpadMode = false
-                    findViewById<View>(R.id.touchpad_area).visibility = View.GONE
+                R.id.nav_mode_toggle -> {
+                    if (isEditMode) {
+                        Toast.makeText(this, "Cannot switch mode in Edit Mode", Toast.LENGTH_SHORT).show()
+                        return@OnItemSelectedListener false
+                    }
+                    isTouchpadMode = !isTouchpadMode
+                    findViewById<View>(R.id.touchpad_area).visibility = if (isTouchpadMode) View.VISIBLE else View.GONE
                     sendHidReport()
-                    syncNavSelection(R.id.nav_gamepad)
-                    true
+                    updateNavTitlesAndIcons()
+                    val modeText = if (isTouchpadMode) getString(R.string.mode_touchpad) else getString(R.string.mode_gamepad)
+                    Toast.makeText(this, modeText, Toast.LENGTH_SHORT).show()
+                    false
                 }
-                R.id.nav_touchpad -> {
-                    if (isEditMode) return@OnItemSelectedListener false
-                    isTouchpadMode = true
-                    findViewById<View>(R.id.touchpad_area).visibility = View.VISIBLE
-                    sendHidReport()
-                    syncNavSelection(R.id.nav_touchpad)
-                    true
+                R.id.nav_orientation -> {
+                    val newOrientation = if (isLandscape()) {
+                        ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                    } else {
+                        ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                    }
+                    requestedOrientation = newOrientation
+                    getSharedPreferences("app_settings", Context.MODE_PRIVATE).edit()
+                        .putString("screen_orientation", if (newOrientation == ActivityInfo.SCREEN_ORIENTATION_PORTRAIT) "portrait" else "landscape")
+                        .apply()
+                    val orientationText = if (newOrientation == ActivityInfo.SCREEN_ORIENTATION_PORTRAIT) {
+                        getString(R.string.orientation_portrait)
+                    } else {
+                        getString(R.string.orientation_landscape)
+                    }
+                    Toast.makeText(this, orientationText, Toast.LENGTH_SHORT).show()
+                    false
                 }
                 R.id.nav_edit -> {
                     isEditMode = !isEditMode
                     setupMode()
-                    val title = if (isEditMode) "Play Mode" else "Edit Mode"
-                    topNav.menu.findItem(R.id.nav_edit)?.title = title
-                    sideNav.menu.findItem(R.id.nav_edit)?.title = title
-                    true
+                    updateNavTitlesAndIcons()
+                    false
                 }
                 R.id.nav_connect -> {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -199,6 +222,8 @@ class MainActivity : AppCompatActivity() {
 
         topNav.setOnItemSelectedListener(navListener)
         sideNav.setOnItemSelectedListener(navListener)
+        topNav.setOnItemReselectedListener { item -> navListener.onNavigationItemSelected(item) }
+        sideNav.setOnItemReselectedListener { item -> navListener.onNavigationItemSelected(item) }
 
         // 既存の横画面設定があれば移行
         migrateOldPrefsIfNeeded()
@@ -243,17 +268,6 @@ class MainActivity : AppCompatActivity() {
         popup.show()
     }
 
-    private fun syncNavSelection(selectedId: Int) {
-        if (isSyncingNav) return
-        isSyncingNav = true
-        try {
-            if (topNav.selectedItemId != selectedId) topNav.selectedItemId = selectedId
-            if (sideNav.selectedItemId != selectedId) sideNav.selectedItemId = selectedId
-        } finally {
-            isSyncingNav = false
-        }
-    }
-
     private fun updateOrientation(isLandscape: Boolean) {
         val mainLayout = findViewById<View>(R.id.main_layout)
         if (isLandscape) {
@@ -265,9 +279,34 @@ class MainActivity : AppCompatActivity() {
             sideNav.visibility = View.VISIBLE
             mainLayout.setPadding(0, 0, 0, 0)
         }
-        val editTitle = if (isEditMode) "Play Mode" else "Edit Mode"
-        topNav.menu.findItem(R.id.nav_edit)?.title = editTitle
-        sideNav.menu.findItem(R.id.nav_edit)?.title = editTitle
+        updateNavTitlesAndIcons()
+    }
+
+    private fun updateNavTitlesAndIcons() {
+        val isLand = isLandscape()
+
+        val modeTitle = if (isTouchpadMode) getString(R.string.mode_touchpad) else getString(R.string.mode_gamepad)
+        val modeIcon = if (isTouchpadMode) android.R.drawable.ic_menu_mylocation else android.R.drawable.ic_menu_compass
+
+        val orientationTitle = if (isLand) getString(R.string.orientation_landscape) else getString(R.string.orientation_portrait)
+
+        val editTitle = if (isEditMode) getString(R.string.mode_play) else getString(R.string.mode_edit)
+        val editIcon = if (isEditMode) android.R.drawable.ic_media_play else android.R.drawable.ic_menu_edit
+
+        listOf(topNav, sideNav).forEach { nav ->
+            nav.menu.findItem(R.id.nav_mode_toggle)?.apply {
+                title = modeTitle
+                setIcon(modeIcon)
+            }
+            nav.menu.findItem(R.id.nav_orientation)?.apply {
+                title = orientationTitle
+                setIcon(R.drawable.ic_screen_rotation)
+            }
+            nav.menu.findItem(R.id.nav_edit)?.apply {
+                title = editTitle
+                setIcon(editIcon)
+            }
+        }
     }
 
     private fun dpToPx(dp: Int): Int = (dp * resources.displayMetrics.density).toInt()
