@@ -17,6 +17,7 @@ import android.os.IBinder
 import android.util.Log
 import android.view.MotionEvent
 import android.view.View
+import android.widget.TextView
 import android.widget.Toast
 import android.net.Uri
 import androidx.activity.result.contract.ActivityResultContracts
@@ -103,6 +104,9 @@ class MainActivity : AppCompatActivity() {
     // ダブルタップ判定用
     private val lastClickTimeMap = mutableMapOf<Int, Long>()
 
+    // リサイズ中のサイズ表示バッジ（パターンA）
+    private var sizeBadge: TextView? = null
+
     // JSON レイアウトのエクスポート・インポート用ランチャー
     private val exportLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri: Uri? ->
         uri?.let { exportLayoutToJson(it) }
@@ -157,6 +161,8 @@ class MainActivity : AppCompatActivity() {
             buttonStates[it.id] = false 
             isResizeModeMap[it.id] = false
         }
+
+        sizeBadge = findViewById(R.id.tv_size_badge)
 
         // ナビゲーションメニューの設定（横画面: topNav, 縦画面: sideNav）
         topNav = findViewById(R.id.top_navigation)
@@ -269,6 +275,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateOrientation(isLandscape: Boolean) {
+        hideSizeBadge()
         val mainLayout = findViewById<View>(R.id.main_layout)
         if (isLandscape) {
             topNav.visibility = View.VISIBLE
@@ -342,6 +349,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupMode() {
         activeEditViewId = View.NO_ID
+        hideSizeBadge()
         if (isEditMode) {
             // 編集モード: 各ボタンにドラッグリスナーを設定
             buttons.forEach { button ->
@@ -374,6 +382,55 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun updateSizeBadge(v: View) {
+        val badge = sizeBadge ?: return
+        val mainLayout = findViewById<View>(R.id.main_layout) ?: return
+
+        val widthPx = (v.width * v.scaleX).toInt()
+        val heightPx = (v.height * v.scaleY).toInt()
+        val density = resources.displayMetrics.density
+        val widthDp = (widthPx / density).toInt()
+        val heightDp = (heightPx / density).toInt()
+
+        val dpStr = if (widthDp == heightDp) "${widthDp} dp" else "${widthDp} × ${heightDp} dp"
+        val pxStr = "${widthPx} × ${heightPx} px"
+        badge.text = "$pxStr ($dpStr)"
+
+        badge.measure(
+            View.MeasureSpec.makeMeasureSpec(mainLayout.width, View.MeasureSpec.AT_MOST),
+            View.MeasureSpec.makeMeasureSpec(mainLayout.height, View.MeasureSpec.AT_MOST)
+        )
+        val badgeWidth = badge.measuredWidth
+        val badgeHeight = badge.measuredHeight
+
+        val centerX = v.left + v.translationX + v.width / 2f
+        val scaledHeight = v.height * v.scaleY
+        val topY = v.top + v.translationY + (v.height - scaledHeight) / 2f
+
+        var targetX = centerX - badgeWidth / 2f
+        var targetY = topY - badgeHeight - dpToPx(8)
+
+        // 画面上部（ナビバー等）からはみ出る場合はボタンの下側に表示
+        val minY = if (isLandscape()) dpToPx(56) else dpToPx(8)
+        if (targetY < minY) {
+            val bottomY = v.top + v.translationY + (v.height + scaledHeight) / 2f
+            targetY = bottomY + dpToPx(8)
+        }
+
+        targetX = targetX.coerceIn(
+            dpToPx(8).toFloat(),
+            (mainLayout.width - badgeWidth - dpToPx(8)).coerceAtLeast(0).toFloat()
+        )
+
+        badge.x = targetX
+        badge.y = targetY
+        badge.visibility = View.VISIBLE
+    }
+
+    private fun hideSizeBadge() {
+        sizeBadge?.visibility = View.GONE
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     private fun createDragListener(): View.OnTouchListener {
         var lastRawX = 0f
@@ -389,6 +446,7 @@ class MainActivity : AppCompatActivity() {
                 if (activeEditViewId == v.id) {
                     activeEditViewId = View.NO_ID
                     saveButtonPosition(v)
+                    hideSizeBadge()
                 }
                 return@OnTouchListener true
             }
@@ -400,9 +458,17 @@ class MainActivity : AppCompatActivity() {
                     val lastTime = lastClickTimeMap[v.id] ?: 0L
                     if (currentTime - lastTime < 300) {
                         // ダブルタップ検知: モード切り替え
-                        isResizeModeMap[v.id] = !(isResizeModeMap[v.id] ?: false)
+                        val isResize = !(isResizeModeMap[v.id] ?: false)
+                        isResizeModeMap[v.id] = isResize
                         updateButtonEditVisual(v)
-                        Toast.makeText(this, if (isResizeModeMap[v.id] == true) "Resize Mode" else "Move Mode", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, if (isResize) "Resize Mode" else "Move Mode", Toast.LENGTH_SHORT).show()
+                        if (isResize) {
+                            updateSizeBadge(v)
+                        } else {
+                            hideSizeBadge()
+                        }
+                    } else if (isResizeModeMap[v.id] == true) {
+                        updateSizeBadge(v)
                     }
                     lastClickTimeMap[v.id] = currentTime
                     
@@ -422,6 +488,7 @@ class MainActivity : AppCompatActivity() {
                             // 最小/最大サイズ制限
                             v.scaleX = v.scaleX.coerceIn(0.5f, 3.0f)
                             v.scaleY = v.scaleY.coerceIn(0.5f, 3.0f)
+                            updateSizeBadge(v)
                         } else {
                             // 配置変更モード
                             v.translationX += deltaX
@@ -436,6 +503,7 @@ class MainActivity : AppCompatActivity() {
                     if (activeEditViewId == v.id) {
                         activeEditViewId = View.NO_ID
                         saveButtonPosition(v)
+                        hideSizeBadge()
                     }
                 }
             }
@@ -444,6 +512,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun resetLayout() {
+        hideSizeBadge()
         buttons.forEach { button ->
             button.translationX = 0f
             button.translationY = 0f
@@ -546,6 +615,7 @@ class MainActivity : AppCompatActivity() {
                 importJsonToPrefs(legacyButtonsObj, "button_prefs_land")
             }
 
+            hideSizeBadge()
             // 現在の向きに合わせて画面上のボタン位置を即座に再読み込み
             loadButtonPositions()
 
