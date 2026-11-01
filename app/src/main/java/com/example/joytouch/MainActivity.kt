@@ -17,6 +17,8 @@ import android.os.IBinder
 import android.util.Log
 import android.view.MotionEvent
 import android.view.View
+import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import android.net.Uri
@@ -99,6 +101,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var topNav: NavigationBarView
     private lateinit var sideNav: NavigationBarView
 
+    // メニューバー開閉状態とトグルタブ（方式B）
+    private var isNavMenuOpen = false
+    private lateinit var navToggleTabLand: FrameLayout
+    private lateinit var navToggleTabPort: FrameLayout
+    private lateinit var navToggleIconLand: ImageView
+    private lateinit var navToggleIconPort: ImageView
+
     // 各ボタンの編集サブモード（true: サイズ変更, false: 位置移動）
     private val isResizeModeMap = mutableMapOf<Int, Boolean>()
     // ダブルタップ判定用
@@ -168,6 +177,13 @@ class MainActivity : AppCompatActivity() {
         topNav = findViewById(R.id.top_navigation)
         sideNav = findViewById(R.id.side_navigation)
 
+        navToggleTabLand = findViewById(R.id.nav_toggle_tab_land)
+        navToggleTabPort = findViewById(R.id.nav_toggle_tab_port)
+        navToggleIconLand = findViewById(R.id.nav_toggle_icon_land)
+        navToggleIconPort = findViewById(R.id.nav_toggle_icon_port)
+
+        setupNavToggleTabs()
+
         val navListener = NavigationBarView.OnItemSelectedListener { item ->
             when (item.itemId) {
                 R.id.nav_mode_toggle -> {
@@ -236,6 +252,9 @@ class MainActivity : AppCompatActivity() {
 
         updateOrientation(resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE)
 
+        // デフォルトではメニューバーを収納（閉じた状態）にする
+        setNavMenuVisible(false, animate = false)
+
         // 保存された位置を復元
         loadButtonPositions()
 
@@ -247,11 +266,112 @@ class MainActivity : AppCompatActivity() {
         // ルートレイアウトにマルチタッチリスナーを設定
         val mainLayout = findViewById<View>(R.id.main_layout)
         mainLayout.setOnTouchListener { v, event ->
+            // メニューが開いている時にゲーム領域をタップしたら自動でメニューを閉じる
+            if (isNavMenuOpen && !isEditMode && event.actionMasked == MotionEvent.ACTION_DOWN) {
+                setNavMenuVisible(false)
+            }
             if (!isEditMode) {
                 handleMultiTouch(event)
             }
             v.performClick()
             true
+        }
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    private fun setupNavToggleTabs() {
+        var landStartY = 0f
+        navToggleTabLand.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    landStartY = event.rawY
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    val deltaY = event.rawY - landStartY
+                    if (deltaY > dpToPx(8)) {
+                        // 下フリック: 開く
+                        setNavMenuVisible(true)
+                    } else if (deltaY < -dpToPx(8)) {
+                        // 上フリック: 閉じる
+                        setNavMenuVisible(false)
+                    } else {
+                        // タップ: トグル切り替え
+                        setNavMenuVisible(!isNavMenuOpen)
+                    }
+                    true
+                }
+                else -> false
+            }
+        }
+
+        var portStartX = 0f
+        navToggleTabPort.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    portStartX = event.rawX
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    val deltaX = event.rawX - portStartX
+                    if (deltaX > dpToPx(8)) {
+                        // 右フリック: 開く
+                        setNavMenuVisible(true)
+                    } else if (deltaX < -dpToPx(8)) {
+                        // 左フリック: 閉じる
+                        setNavMenuVisible(false)
+                    } else {
+                        // タップ: トグル切り替え
+                        setNavMenuVisible(!isNavMenuOpen)
+                    }
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
+    private fun setNavMenuVisible(visible: Boolean, animate: Boolean = true) {
+        isNavMenuOpen = visible
+        val isLand = isLandscape()
+        val navHeight = dpToPx(56).toFloat()
+        val navWidth = dpToPx(72).toFloat()
+        val duration = if (animate) 250L else 0L
+
+        if (isLand) {
+            val targetNavY = if (visible) 0f else -navHeight
+            val targetTabY = if (visible) navHeight else 0f
+
+            topNav.animate()
+                .translationY(targetNavY)
+                .setDuration(duration)
+                .start()
+
+            navToggleTabLand.animate()
+                .translationY(targetTabY)
+                .setDuration(duration)
+                .start()
+
+            navToggleIconLand.setImageResource(
+                if (visible) R.drawable.ic_arrow_up else R.drawable.ic_arrow_down
+            )
+        } else {
+            val targetNavX = if (visible) 0f else -navWidth
+            val targetTabX = if (visible) navWidth else 0f
+
+            sideNav.animate()
+                .translationX(targetNavX)
+                .setDuration(duration)
+                .start()
+
+            navToggleTabPort.animate()
+                .translationX(targetTabX)
+                .setDuration(duration)
+                .start()
+
+            navToggleIconPort.setImageResource(
+                if (visible) R.drawable.ic_arrow_left else R.drawable.ic_arrow_right
+            )
         }
     }
 
@@ -280,13 +400,18 @@ class MainActivity : AppCompatActivity() {
         if (isLandscape) {
             topNav.visibility = View.VISIBLE
             sideNav.visibility = View.GONE
+            navToggleTabLand.visibility = View.VISIBLE
+            navToggleTabPort.visibility = View.GONE
             mainLayout.setPadding(dpToPx(48), 0, dpToPx(48), 0)
         } else {
             topNav.visibility = View.GONE
             sideNav.visibility = View.VISIBLE
+            navToggleTabLand.visibility = View.GONE
+            navToggleTabPort.visibility = View.VISIBLE
             mainLayout.setPadding(0, 0, 0, 0)
         }
         updateNavTitlesAndIcons()
+        setNavMenuVisible(isNavMenuOpen, animate = false)
     }
 
     private fun updateNavTitlesAndIcons() {
@@ -411,7 +536,7 @@ class MainActivity : AppCompatActivity() {
         var targetY = topY - badgeHeight - dpToPx(8)
 
         // 画面上部（ナビバー等）からはみ出る場合はボタンの下側に表示
-        val minY = if (isLandscape()) dpToPx(56) else dpToPx(8)
+        val minY = if (isLandscape()) (if (isNavMenuOpen) dpToPx(56) else dpToPx(8)) else dpToPx(8)
         if (targetY < minY) {
             val bottomY = v.top + v.translationY + (v.height + scaledHeight) / 2f
             targetY = bottomY + dpToPx(8)
@@ -775,6 +900,9 @@ class MainActivity : AppCompatActivity() {
 
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    if (isNavMenuOpen && !isEditMode) {
+                        setNavMenuVisible(false)
+                    }
                     lastTouchX = event.x
                     lastTouchY = event.y
                 }
